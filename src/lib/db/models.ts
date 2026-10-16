@@ -55,6 +55,8 @@ export interface TabGroup extends BaseRecord {
   title: string;
   color: GroupColor;
   state: GroupState;
+  /** When the group last changed state («Убрана 3 дня назад»). Missing on records from before stage 3. */
+  stateChangedAt?: Timestamp;
   order: number;
   /** Id of the native Chrome group while the group is on the tab strip; cleared when stowed. */
   chromeGroupId?: number;

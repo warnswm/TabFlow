@@ -12,9 +12,10 @@ import {
 } from '../messages';
 import { collapseAll } from './collapse';
 import type { BackgroundContext } from './context';
-import { restoreGroup, sleepGroup, stowGroup } from './group-actions';
+import { editGroup, openTab, restoreGroup, sleepGroup, stowGroup } from './group-actions';
 import { handleTabsEvent, reconcileAll } from './mirror';
 import { createSerialQueue } from './serial-queue';
+import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 
 export type { BackgroundContext } from './context';
 
@@ -37,6 +38,18 @@ function runCommand(ctx: BackgroundContext, command: Command): Promise<CommandRe
       return stowGroup(ctx, command.groupId);
     case 'restoreGroup':
       return restoreGroup(ctx, command.groupId, command.mode);
+    case 'editGroup':
+      return editGroup(ctx, command.groupId, { title: command.title, color: command.color });
+    case 'deleteGroup':
+      return deleteGroup(ctx, command.groupId);
+    case 'deleteSpace':
+      return deleteSpace(ctx, command.spaceId);
+    case 'deleteTab':
+      return deleteTab(ctx, command.tabId);
+    case 'restoreDeleted':
+      return restoreDeleted(ctx, command.kind, command.id, command.reopenGroupIds, command.mode);
+    case 'openTab':
+      return openTab(ctx, command.tabId);
   }
 }
 

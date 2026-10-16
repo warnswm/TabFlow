@@ -5,7 +5,7 @@
  */
 import { browser, type Browser } from 'wxt/browser';
 import { GROUP_COLORS, type GroupColor } from './db/models';
-import { parsePlaceholderUrl, PLACEHOLDER_PAGE_PATH } from './placeholder';
+import { cachedFaviconUrl, parsePlaceholderUrl, PLACEHOLDER_PAGE_PATH } from './placeholder';
 
 /** Path of the main TabFlow page inside the extension bundle. */
 export const APP_PAGE_PATH = '/app.html';
@@ -17,6 +17,23 @@ export function getAppPageUrl(): string {
 /** Opens the main TabFlow page in a new tab. */
 export async function openAppPage(): Promise<void> {
   await browser.tabs.create({ url: getAppPageUrl() });
+}
+
+/** Icon of a page from Chrome's favicon cache — served locally, no network request. */
+export function faviconUrl(pageUrl: string, size = 32): string {
+  return cachedFaviconUrl(new URL(browser.runtime.getURL('/')).origin, pageUrl, size);
+}
+
+// ---------------------------------------------------------------------------
+// Settings (`storage.local` holds settings only; data lives in IndexedDB)
+// ---------------------------------------------------------------------------
+
+export async function readSetting(key: string): Promise<unknown> {
+  return (await browser.storage.local.get(key))[key];
+}
+
+export async function writeSetting(key: string, value: unknown): Promise<void> {
+  await browser.storage.local.set({ [key]: value });
 }
 
 /** Registers a callback for the first install and updates of the extension. */

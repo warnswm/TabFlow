@@ -29,9 +29,15 @@ describe('collapse all', () => {
 
     const result = expectOk(await t.command({ type: 'collapseAll' }));
 
-    expect(result).toEqual({ groups: 2, tabs: 4, failed: 0 });
-
     const groups = await t.groups.listAll();
+    // Undo reopens exactly the stowed groups.
+    expect(result).toEqual({
+      groups: 2,
+      tabs: 4,
+      failed: 0,
+      closedGroupIds: expect.arrayContaining(groups.map((group) => group.id)),
+    });
+    expect(result.closedGroupIds).toHaveLength(2);
     expect(groups.every((group) => group.state === 'stowed')).toBe(true);
     const inbox = await t.spaces.ensureDefault();
     expect(groups.every((group) => group.spaceId === inbox.id)).toBe(true);
@@ -77,7 +83,7 @@ describe('collapse all', () => {
 
     const result = expectOk(await t.command({ type: 'collapseAll' }));
 
-    expect(result).toEqual({ groups: 0, tabs: 0, failed: 0 });
+    expect(result).toEqual({ groups: 0, tabs: 0, failed: 0, closedGroupIds: [] });
     expect(t.api.allTabs().map((tab) => tab.url)).toEqual(['chrome://newtab']);
     expect(await t.groups.listAll()).toEqual([]);
   });

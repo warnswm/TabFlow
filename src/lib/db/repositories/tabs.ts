@@ -32,6 +32,11 @@ export class TabRepository {
     return liveOnly(tabs);
   }
 
+  /** All live tabs, any group — for the overview. */
+  async listAll(): Promise<SavedTab[]> {
+    return liveOnly(await this.db.tabs.toArray());
+  }
+
   async get(id: Id): Promise<SavedTab | undefined> {
     const tab = await this.db.tabs.get(id);
     return tab && isLive(tab) ? tab : undefined;

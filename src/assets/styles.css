@@ -14,3 +14,21 @@
 /* Scan only src/ for class names (design/canvas mockups stay out of the bundle). */
 @import 'tailwindcss' source('..');
 @import '../../design/tokens.css';
+
+/* Enter animations (DESIGN.md → «Движение»); `prefers-reduced-motion` turns them off in tokens.css. */
+@theme {
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-enter);
+  --animate-toast-in: toast-in var(--duration-base) var(--ease-enter);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}

@@ -13,16 +13,21 @@ export function plural(n: number, [one, few, many]: readonly [string, string, st
   return many;
 }
 
-const TABS: [string, string, string] = ['вкладка', 'вкладки', 'вкладок'];
-const GROUPS: [string, string, string] = ['группа', 'группы', 'групп'];
+export const TABS: [string, string, string] = ['вкладка', 'вкладки', 'вкладок'];
+export const GROUPS: [string, string, string] = ['группа', 'группы', 'групп'];
+const GROUPS_WITH: [string, string, string] = ['группой', 'группами', 'группами'];
 
-const count = (n: number, forms: [string, string, string]) => `${n} ${plural(n, forms)}`;
+/** «3 вкладки». */
+export const count = (n: number, forms: readonly [string, string, string]) =>
+  `${n} ${plural(n, forms)}`;
 
-export function describeResponse(
-  type: CommandType,
-  response: CommandResponse,
-  groupTitle = '',
-): string {
+const TRASH_NOTE = 'Её можно вернуть из корзины в течение 30 дней.';
+
+/**
+ * Text for a command result. `name` is the title of the group or space the command was about.
+ * Commands with a visible result (opening a tab, editing a group) still get a short text.
+ */
+export function describeResponse(type: CommandType, response: CommandResponse, name = ''): string {
   if (!response.ok) {
     switch (response.code) {
       case 'group-not-found':
@@ -33,13 +38,21 @@ export function describeResponse(
         return 'В группе нет вкладок — восстанавливать нечего.';
       case 'restore-failed':
         return 'Не удалось восстановить вкладки — страницы недоступны. Ссылки сохранены.';
+      case 'space-not-found':
+        return 'Пространство не найдено — возможно, оно уже удалено.';
+      case 'space-protected':
+        return '«Входящие» не удаляются — сюда попадают свёрнутые вкладки.';
+      case 'tab-not-found':
+        return 'Ссылка не найдена — возможно, она уже удалена.';
+      case 'not-in-trash':
+        return 'В корзине этого уже нет — возможно, оно уже восстановлено.';
       default:
         return 'Действие не выполнено. Вкладки и ссылки остались на месте.';
     }
   }
 
   const { groups, tabs, failed } = response.result;
-  const name = `«${groupTitle || 'Без названия'}»`;
+  const title = `«${name || 'Без названия'}»`;
   const failedNote = failed > 0 ? ` Не удалось: ${count(failed, TABS)} — ссылки сохранены.` : '';
 
   switch (type) {
@@ -48,10 +61,26 @@ export function describeResponse(
         ? 'Сворачивать нечего — открыты только закреплённые и служебные вкладки.'
         : `Свёрнуто: ${count(groups, GROUPS)} · ${count(tabs, TABS)}. Ссылки сохранены во «Входящих».`;
     case 'sleepGroup':
-      return `Группа ${name} уснула — ${count(tabs, TABS)}. Вкладки остались на месте.${failedNote}`;
+      return `Группа ${title} уснула — ${count(tabs, TABS)}. Вкладки остались на месте.${failedNote}`;
     case 'stowGroup':
-      return `${name} убрана в TabFlow. ${count(tabs, TABS)} ${plural(tabs, ['сохранена', 'сохранены', 'сохранены'])}.`;
+      return `${title} убрана в TabFlow. ${count(tabs, TABS)} ${plural(tabs, ['сохранена', 'сохранены', 'сохранены'])}.`;
     case 'restoreGroup':
-      return `Группа ${name} восстановлена — ${count(tabs, TABS)}.${failedNote}`;
+      return `Группа ${title} восстановлена — ${count(tabs, TABS)}.${failedNote}`;
+    case 'editGroup':
+      return `Группа ${title} сохранена.`;
+    case 'deleteGroup':
+      return `Группа ${title} удалена. ${TRASH_NOTE}`;
+    case 'deleteSpace':
+      return groups === 0
+        ? `Пространство ${title} удалено. Его можно вернуть из корзины в течение 30 дней.`
+        : `Пространство ${title} удалено вместе с ${count(groups, GROUPS_WITH)}. Его можно вернуть из корзины в течение 30 дней.`;
+    case 'deleteTab':
+      return groups > 0
+        ? `Последняя ссылка удалена вместе с группой ${title}. ${TRASH_NOTE}`
+        : 'Ссылка удалена. Её можно вернуть из корзины в течение 30 дней.';
+    case 'restoreDeleted':
+      return `Восстановлено из корзины.${failedNote}`;
+    case 'openTab':
+      return 'Вкладка открыта.';
   }
 }

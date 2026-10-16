@@ -38,7 +38,7 @@ describe('group actions', () => {
 
       const result = expectOk(await t.command({ type: 'sleepGroup', groupId: group.id }));
 
-      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0 });
+      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0, closedGroupIds: [] });
       const chromeTabs = await t.api.queryTabs({ groupId });
       expect(chromeTabs.every((tab) => tab.discarded)).toBe(true);
       expect((await t.api.getGroup(groupId))?.collapsed).toBe(true);
@@ -75,7 +75,7 @@ describe('group actions', () => {
 
       const result = expectOk(await t.command({ type: 'stowGroup', groupId: group.id }));
 
-      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0 });
+      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0, closedGroupIds: [group.id] });
       const stowed = await t.groups.get(group.id);
       expect(stowed?.state).toBe('stowed');
       expect(stowed?.chromeGroupId).toBeUndefined();
@@ -140,7 +140,7 @@ describe('group actions', () => {
 
       const result = expectOk(await t.command({ type: 'restoreGroup', groupId: group.id }));
 
-      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0 });
+      expect(result).toEqual({ groups: 1, tabs: 3, failed: 0, closedGroupIds: [] });
       const restored = single(await t.groups.listAll());
       expect(restored).toMatchObject({ id: group.id, state: 'active' });
       const chromeGroup = await t.api.getGroup(restored.chromeGroupId ?? -1);

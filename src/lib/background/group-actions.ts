@@ -2,22 +2,60 @@
  * Sleep / stow / restore a group. Rule for everything that closes tabs: the database is written
  * first, tabs are closed only after the write succeeded — a failed write leaves the tabs open.
  */
-import type { BrowserTab } from '../browser-api';
-import type { Id, TabGroup } from '../db';
+import type { BrowserTab, GroupUpdate } from '../browser-api';
+import type { GroupColor, Id, TabGroup } from '../db';
 import { CommandError, type CommandResult, type RestoreMode } from '../messages';
 import { buildPlaceholderUrl } from '../placeholder';
 import type { BackgroundContext } from './context';
 import { syncGroup } from './mirror';
-import { isSaveableTab, splitDuplicates } from './tab-rules';
+import { isSaveableTab, isSaveableUrl, splitDuplicates } from './tab-rules';
 
 export function result(partial: Partial<CommandResult>): CommandResult {
-  return { groups: 0, tabs: 0, failed: 0, ...partial };
+  return { groups: 0, tabs: 0, failed: 0, closedGroupIds: [], ...partial };
 }
 
-async function requireGroup(ctx: BackgroundContext, groupId: Id): Promise<TabGroup> {
+export async function requireGroup(ctx: BackgroundContext, groupId: Id): Promise<TabGroup> {
   const group = await ctx.repos.groups.get(groupId);
   if (!group) throw new CommandError('group-not-found', `Group ${groupId} not found`);
   return group;
+}
+
+/** Renames or recolors the group; a group on the tab strip changes in Chrome as well. */
+export async function editGroup(
+  ctx: BackgroundContext,
+  groupId: Id,
+  patch: { title?: string; color?: GroupColor },
+): Promise<CommandResult> {
+  const group = await requireGroup(ctx, groupId);
+  const update: GroupUpdate = {};
+  if (patch.title !== undefined) update.title = patch.title.trim();
+  if (patch.color !== undefined) update.color = patch.color;
+
+  await ctx.repos.groups.update(group.id, update);
+  if (group.chromeGroupId !== undefined) {
+    try {
+      await ctx.api.updateGroup(group.chromeGroupId, update);
+    } catch {
+      // Closed meanwhile: the mirror stows it with the new title.
+    }
+  }
+  return result({ groups: 1 });
+}
+
+/** Shows the link's open tab, or opens the link in a new tab of the current window. */
+export async function openTab(ctx: BackgroundContext, tabId: Id): Promise<CommandResult> {
+  const { api, repos } = ctx;
+  const tab = await repos.tabs.get(tabId);
+  if (!tab) throw new CommandError('tab-not-found', `Tab ${tabId} not found`);
+
+  if (tab.chromeTabId !== undefined && (await api.getTab(tab.chromeTabId))) {
+    await api.activateTab(tab.chromeTabId);
+  } else {
+    // Saved links are web pages or files; anything else is never opened.
+    if (!isSaveableUrl(tab.url)) throw new CommandError('restore-failed', 'Not a web page');
+    await api.createTab({ windowId: await api.getCurrentWindowId(), url: tab.url, active: true });
+  }
+  return result({ tabs: 1 });
 }
 
 /** Puts the group to sleep: its tabs stay on the strip but are unloaded from memory. */
@@ -65,10 +103,16 @@ export async function stowGroup(ctx: BackgroundContext, groupId: Id): Promise<Co
 
   const plan = await stowInDb(ctx, group.chromeGroupId);
   await closeTabs(ctx, plan.closeIds, plan.ungroupIds);
-  return result({ groups: 1, tabs: plan.saved });
+  return result({
+    groups: 1,
+    tabs: plan.saved,
+    closedGroupIds: plan.groupId === undefined ? [] : [plan.groupId],
+  });
 }
 
 export interface StowPlan {
+  /** The stowed group; missing when it held only browser pages and was forgotten. */
+  groupId?: Id;
   /** Tabs kept in TabFlow (duplicates dropped). */
   saved: number;
   /** Saved tabs and their duplicates: closed after the write. */
@@ -102,6 +146,7 @@ export async function stowInDb(ctx: BackgroundContext, chromeGroupId: number): P
       await repos.groups.forget(mirror.id); // only browser pages: nothing to keep
     } else {
       await repos.groups.setState(mirror.id, 'stowed');
+      plan.groupId = mirror.id;
     }
     return unique.length;
   });

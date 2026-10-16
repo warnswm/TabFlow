@@ -67,6 +67,7 @@ export class GroupRepository {
         title: input.title.trim(),
         color: input.color,
         state: input.state ?? 'active',
+        stateChangedAt: now,
         order: orderAfterLast(await this.listBySpace(input.spaceId)),
         chromeGroupId: input.chromeGroupId,
         windowId: input.windowId,
@@ -98,6 +99,7 @@ export class GroupRepository {
       if (state === 'stowed') {
         await this.db.groups.update(id, {
           state,
+          stateChangedAt: now,
           chromeGroupId: undefined,
           windowId: undefined,
           updatedAt: now,
@@ -107,7 +109,7 @@ export class GroupRepository {
           .equals(id)
           .modify({ chromeTabId: undefined, updatedAt: now });
       } else {
-        await this.db.groups.update(id, { state, updatedAt: now });
+        await this.db.groups.update(id, { state, stateChangedAt: now, updatedAt: now });
       }
     });
   }
@@ -119,6 +121,7 @@ export class GroupRepository {
       const now = this.clock();
       await this.db.groups.update(id, {
         state: 'active',
+        stateChangedAt: now,
         chromeGroupId: link.chromeGroupId,
         windowId: link.windowId,
         updatedAt: now,
@@ -198,6 +201,7 @@ export class GroupRepository {
         deletedAt: undefined,
         spaceId,
         state: 'stowed',
+        stateChangedAt: this.clock(),
         chromeGroupId: undefined,
         windowId: undefined,
         order: orderAfterLast(await this.listBySpace(spaceId)),
