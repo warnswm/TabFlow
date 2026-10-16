@@ -1,0 +1,108 @@
+/* TabFlow design tokens — Tailwind CSS v4 (@theme). Source of truth: design-tokens.json */
+/* Fonts are bundled locally via @fontsource (see src/assets/styles.css) — no network requests. */
+
+@theme {
+  /* Background & surfaces */
+  --color-bg: #0e1013;
+  --color-bg-sunken: #0a0c0e;
+  --color-overlay: rgb(5 6 8 / 0.64);
+  --color-surface: #161a1f;
+  --color-surface-raised: #1d2228;
+
+  /* Borders */
+  --color-border: #262b33; /* decorative dividers, tile outlines */
+  --color-border-control: #656e7b; /* inputs, checkboxes, stowed tiles — ≥3:1 */
+
+  /* Text */
+  --color-fg: #e8eaed; /* 14.5:1 on surface */
+  --color-fg-muted: #9aa3ae; /* 6.8:1 on surface */
+  --color-fg-subtle: #7f8893; /* 4.9:1 on surface — placeholders, meta */
+
+  /* Accent — turquoise, the only bright color */
+  --color-accent: #2dd4bf;
+  --color-accent-hover: #5eead4;
+  --color-accent-pressed: #14b8a6;
+  --color-accent-soft: #193032; /* selected rows, active nav */
+  --color-on-accent: #04201c; /* text on accent fills — 9.2:1 */
+  --color-focus: #5eead4;
+
+  /* Status */
+  --color-danger: #f87171;
+  --color-warning: #fbbf24;
+
+  /* Chrome tab-group colors (dark variants) — dots and labels only */
+  --color-group-grey: #dadce0;
+  --color-group-blue: #8ab4f8;
+  --color-group-red: #f28b82;
+  --color-group-yellow: #fdd663;
+  --color-group-green: #81c995;
+  --color-group-pink: #ff8bcb;
+  --color-group-purple: #c58af9;
+  --color-group-cyan: #78d9ec;
+  --color-group-orange: #fcad70;
+
+  /* Typography */
+  --font-sans: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-md: 16px;
+  --text-md--line-height: 22px;
+  --text-lg: 20px;
+  --text-lg--line-height: 26px;
+  --text-xl: 24px;
+  --text-xl--line-height: 30px;
+  --text-2xl: 32px;
+  --text-2xl--line-height: 38px;
+
+  /* Spacing base (Tailwind multiplies: p-2 = 8px) */
+  --spacing: 4px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  /* Shadows */
+  --shadow-popover: 0 12px 32px rgb(0 0 0 / 0.5), 0 0 0 1px #262b33;
+  --shadow-drag: 0 8px 20px rgb(0 0 0 / 0.45);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}

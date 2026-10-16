@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>TabFlow — главная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1013}
+a{color:#2DD4BF}a:hover{color:#5EEAD4}
+button{font-family:inherit}
+input::placeholder{color:#7F8893}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1013; color: #E8EAED; font-family: 'Onest', system-ui, sans-serif; font-size: 14px; line-height: 20px; display: flex; flex-wrap: wrap; align-items: stretch">
+
+  <nav aria-label="Разделы" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; padding: 20px 12px; background: #0A0C0E; border-right: 1px solid #262B33; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #2DD4BF; color: #04201C; display: flex; align-items: center; justify-content: center">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="7" rx="1.5"></rect><rect x="14" y="4" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><path d="M14 17.5h7"></path></svg>
+      </div>
+      <div style="font-weight: 700; font-size: 17px; letter-spacing: -0.01em">TabFlow</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7F8893; padding: 0 8px 6px">Пространства</div>
+      <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: #193032; color: #2DD4BF; text-decoration: none; font-weight: 600">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        Работа<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px">83</span>
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; color: #E8EAED; text-decoration: none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h7a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H2z"></path><path d="M22 6h-7a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h8z"></path></svg>
+        Учёба<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9AA3AE">57</span>
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; color: #E8EAED; text-decoration: none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+        Личное<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9AA3AE">24</span>
+      </a>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; color: #E8EAED; text-decoration: none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+        Группы
+      </a>
+      <a href="SidePanel.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; color: #E8EAED; text-decoration: none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="m10 9 5 3-5 3z"></path></svg>
+        Очередь<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #193032; color: #2DD4BF; border-radius: 10px; padding: 1px 7px">12</span>
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; color: #E8EAED; text-decoration: none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>
+        Корзина
+      </a>
+    </div>
+
+    <div style="margin-top: auto; background: #161A1F; border: 1px solid #262B33; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 12px; color: #9AA3AE">Освобождено сегодня</div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; line-height: 28px; color: #E8EAED">1,8 ГБ</div>
+      <div style="height: 4px; border-radius: 2px; background: #262B33; overflow: hidden"><div style="width: 64%; height: 4px; background: #2DD4BF"></div></div>
+      <div style="font-size: 12px; color: #7F8893">4 группы спят · 2 убраны</div>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 640px; min-width: 0; box-sizing: border-box; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+      <h1 style="margin: 0 8px 0 0; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.02em">Работа</h1>
+      <div style="flex: 1 1 260px; display: flex; align-items: center; gap: 10px; background: #0E1013; border: 1px solid #656E7B; border-radius: 8px; padding: 0 12px; height: 36px; box-sizing: border-box">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <label for="q" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Поиск</label>
+        <input id="q" type="search" placeholder="Поиск по группам и вкладкам" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; color: #E8EAED">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9AA3AE; border: 1px solid #262B33; border-radius: 6px; padding: 1px 6px">Ctrl K</span>
+      </div>
+      <button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #262B33; border-radius: 8px; background: #1D2228; color: #E8EAED; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="9"></circle></svg>Фокус
+      </button>
+      <button type="button" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #2DD4BF; color: #04201C; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"></path><path d="M20 10h-6V4"></path><path d="m14 10 7-7"></path><path d="m3 21 7-7"></path></svg>Свернуть всё
+      </button>
+    </div>
+
+    <div role="group" aria-label="Фильтр" style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{chips}}" as="c" hint-placeholder-count="5">
+        <button type="button" aria-pressed="{{c.pressed}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; cursor: pointer">{{c.label}}<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: 0.8">{{c.count}}</span></button>
+      </sc-for>
+    </div>
+
+    <section aria-labelledby="groups-h" style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: baseline; gap: 10px">
+        <h2 id="groups-h" style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 600">Группы</h2>
+        <span style="font-size: 13px; color: #9AA3AE">7 групп · 83 вкладки</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px 16px">
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="7">
+          <article style="background: {{g.tileBg}}; border: 1px {{g.borderStyle}} {{g.borderColor}}; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column">
+            <div style="position: relative; aspect-ratio: 16 / 9; background: #0A0C0E">
+              <div style="position: absolute; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 2px; opacity: {{g.mediaOpacity}}">
+                <sc-for list="{{g.cells}}" as="c" hint-placeholder-count="4">
+                  <div style="min-width: 0; background: {{c.bg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative">
+                    <sc-if value="{{c.isVideo}}" hint-placeholder-val="{{false}}">
+                      <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="rgba(232,234,237,0.85)"><path d="M8 5.5v13l11-6.5z"></path></svg>
+                      <span style="position: absolute; right: 6px; bottom: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; line-height: 14px; background: rgba(5,6,8,0.8); color: #E8EAED; border-radius: 4px; padding: 0 4px">{{c.duration}}</span>
+                    </sc-if>
+                    <sc-if value="{{c.isSite}}" hint-placeholder-val="{{true}}">
+                      <span style="width: 30px; height: 30px; border-radius: 8px; background: {{c.fav}}; color: #FFFFFF; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{c.l}}</span>
+                      <span style="max-width: 88%; font-size: 11px; line-height: 14px; color: #9AA3AE; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.domain}}</span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <span style="position: absolute; right: 8px; bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 16px; background: rgba(5,6,8,0.85); color: #E8EAED; border-radius: 6px; padding: 1px 7px">{{g.count}} вкладок</span>
+              <sc-if value="{{g.isAsleep}}" hint-placeholder-val="{{false}}">
+                <span style="position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; background: rgba(5,6,8,0.85); color: #E8EAED; border-radius: 9999px; padding: 3px 10px 3px 8px">
+                  <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>Спит · <span style="font-family: 'JetBrains Mono', monospace">{{g.freed}}</span>
+                </span>
+              </sc-if>
+              <sc-if value="{{g.isStowed}}" hint-placeholder-val="{{false}}">
+                <span style="position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; background: rgba(5,6,8,0.85); color: #E8EAED; border-radius: 9999px; padding: 3px 10px 3px 8px">
+                  <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"></rect><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"></path><path d="M10 13h4"></path></svg>Убрана в TabFlow
+                </span>
+              </sc-if>
+            </div>
+            <div style="padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <span style="flex: none; width: 10px; height: 10px; border-radius: 50%; background: {{g.color}}"></span>
+                <h3 style="margin: 0; min-width: 0; font-size: 15px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{g.name}}</h3>
+                <button type="button" aria-label="Действия с группой" style="margin-left: auto; flex: none; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #9AA3AE; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
+                </button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: #9AA3AE; padding-left: 18px">
+                <sc-if value="{{g.isActive}}" hint-placeholder-val="{{true}}">
+                  <span style="width: 6px; height: 6px; border-radius: 50%; background: #2DD4BF"></span>
+                </sc-if>
+                <span>{{g.status}}</span>
+                <sc-if value="{{g.isStowed}}" hint-placeholder-val="{{false}}">
+                  <a href="#" style="margin-left: auto; font-weight: 600; text-decoration: none">Вернуть</a>
+                </sc-if>
+                <sc-if value="{{g.isAsleep}}" hint-placeholder-val="{{false}}">
+                  <a href="#" style="margin-left: auto; font-weight: 600; text-decoration: none">Разбудить</a>
+                </sc-if>
+              </div>
+            </div>
+          </article>
+        </sc-for>
+        <button type="button" style="min-height: 220px; border: 1px dashed #262B33; border-radius: 12px; background: transparent; color: #9AA3AE; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Новая группа
+        </button>
+      </div>
+    </section>
+
+    <section aria-labelledby="queue-h" style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px">
+        <h2 id="queue-h" style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 600">Очередь</h2>
+        <span style="font-size: 13px; color: #9AA3AE">На сегодня: 3 видео · <span style="font-family: 'JetBrains Mono', monospace">47 мин</span></span>
+        <a href="SidePanel.dc.html" style="margin-left: auto; font-size: 13px; font-weight: 600; text-decoration: none">Вся очередь · 12</a>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px">
+        <sc-for list="{{videos}}" as="v" hint-placeholder-count="4">
+          <article style="background: #161A1F; border: 1px solid #262B33; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column">
+            <div style="position: relative; aspect-ratio: 16 / 9; background: {{v.thumb}}; display: flex; align-items: center; justify-content: center">
+              <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="rgba(232,234,237,0.85)"><path d="M8 5.5v13l11-6.5z"></path></svg>
+              <span style="position: absolute; left: 8px; top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(5,6,8,0.8); color: #E8EAED; border-radius: 6px; padding: 1px 6px">#{{v.priority}}</span>
+              <span style="position: absolute; right: 8px; bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(5,6,8,0.8); color: #E8EAED; border-radius: 6px; padding: 1px 6px">{{v.duration}}</span>
+              <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(5,6,8,0.6)"><div style="width: {{v.progress}}; height: 3px; background: #2DD4BF"></div></div>
+            </div>
+            <div style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px">
+              <h3 style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{{v.title}}</h3>
+              <span style="font-size: 12px; line-height: 16px; color: #9AA3AE">{{v.source}}</span>
+            </div>
+          </article>
+        </sc-for>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var G = { grey: '#DADCE0', blue: '#8AB4F8', red: '#F28B82', yellow: '#FDD663', green: '#81C995', pink: '#FF8BCB', purple: '#C58AF9', cyan: '#78D9EC', orange: '#FCAD70' };
+    var F = ['#2F5BD8', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#15803D', '#374151', '#C2410C', '#B91C1C'];
+    var THUMB = ['#1E3A4C', '#24343A', '#2E2A3F', '#3A2E26', '#20323A', '#2A3324'];
+    // cell spec: 'domain' = site tile, '▶mm:ss' = video tile
+    var cell = function (spec, i) {
+      if (spec.charAt(0) === '▶') {
+        return { isVideo: true, isSite: false, duration: spec.slice(1), bg: THUMB[i % THUMB.length] };
+      }
+      return { isVideo: false, isSite: true, domain: spec, l: spec.charAt(0).toUpperCase(), fav: F[(spec.charCodeAt(0) + i) % F.length], bg: '#161A1F' };
+    };
+    var group = function (name, color, count, state, status, freed, cells) {
+      return {
+        name: name, color: color, count: count, status: status, freed: freed,
+        cells: cells.map(cell),
+        isActive: state === 'active', isAsleep: state === 'asleep', isStowed: state === 'stowed',
+        mediaOpacity: state === 'active' ? 1 : 0.45,
+        tileBg: state === 'stowed' ? 'transparent' : '#161A1F',
+        borderStyle: state === 'stowed' ? 'dashed' : 'solid',
+        borderColor: state === 'stowed' ? '#656E7B' : '#262B33'
+      };
+    };
+    var groups = [
+      group('Исследование React', G.blue, 12, 'active', 'Активна · открыта сейчас', '', ['react.dev', '▶18:42', 'github.com', 'tanstack.com']),
+      group('Chrome Extensions API', G.cyan, 8, 'active', 'Активна · 6 мин назад', '', ['developer.chrome.com', 'wxt.dev', '▶04:55', 'stackoverflow.com']),
+      group('Курс TypeScript', G.green, 14, 'asleep', '14 видео · 3 ч 12 мин', '420 МБ', ['▶24:10', '▶16:05', '▶31:40', '▶12:18']),
+      group('Дизайн-референсы', G.purple, 15, 'asleep', 'Уснула 2 ч назад', '380 МБ', ['linear.app', 'mobbin.com', 'dribbble.com', 'raindrop.io']),
+      group('Java backend', G.orange, 9, 'stowed', 'Убрана 3 дня назад', '', ['docs.spring.io', 'baeldung.com', '▶41:03', 'openjdk.org']),
+      group('Статьи на вечер', G.yellow, 21, 'stowed', 'Убрана неделю назад', '', ['habr.com', 'medium.com', 'inkandswitch.com', 'grugbrain.dev']),
+      group('Покупки', G.pink, 4, 'asleep', 'Уснула вчера', '90 МБ', ['ozon.ru', 'wildberries.ru', 'market.yandex.ru', 'dns-shop.ru'])
+    ];
+    var chip = function (label, count, on) {
+      return { label: label, count: count, pressed: on ? 'true' : 'false', bg: on ? '#193032' : 'transparent', fg: on ? '#2DD4BF' : '#9AA3AE', border: on ? '#193032' : '#262B33' };
+    };
+    var chips = [chip('Все', 7, true), chip('Активные', 2, false), chip('Спят', 3, false), chip('Убраны', 2, false), chip('Избранное', 1, false)];
+    var videos = [
+      { priority: 1, title: 'React Server Components — разбор на практике', source: 'YouTube · обучение', duration: '18:42', progress: '0%', thumb: '#1E3A4C' },
+      { priority: 2, title: 'TypeScript generics: от простого к сложному', source: 'YouTube · Курс TypeScript', duration: '24:10', progress: '62%', thumb: '#24343A' },
+      { priority: 3, title: 'Как устроены вкладки в Chromium', source: 'YouTube · Chrome Extensions API', duration: '04:55', progress: '0%', thumb: '#2E2A3F' },
+      { priority: 4, title: 'Доклад: архитектура больших фронтендов', source: 'vkvideo.ru · на выходные', duration: '41:03', progress: '0%', thumb: '#3A2E26' }
+    ];
+    return { groups: groups, chips: chips, videos: videos };
+  }
+}
+</script>
+</body>
+</html>

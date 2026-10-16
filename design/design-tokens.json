@@ -1,0 +1,94 @@
+{
+  "$schema": "tabflow-design-tokens/v1",
+  "theme": "dark",
+  "color": {
+    "bg": { "base": "#0E1013", "sunken": "#0A0C0E", "overlay": "rgba(5, 6, 8, 0.64)" },
+    "surface": { "default": "#161A1F", "raised": "#1D2228" },
+    "border": { "subtle": "#262B33", "control": "#656E7B" },
+    "text": { "primary": "#E8EAED", "secondary": "#9AA3AE", "tertiary": "#7F8893" },
+    "accent": {
+      "default": "#2DD4BF",
+      "hover": "#5EEAD4",
+      "pressed": "#14B8A6",
+      "soft": "#193032",
+      "on": "#04201C"
+    },
+    "focus": "#5EEAD4",
+    "status": { "danger": "#F87171", "warning": "#FBBF24" },
+    "group": {
+      "grey": "#DADCE0",
+      "blue": "#8AB4F8",
+      "red": "#F28B82",
+      "yellow": "#FDD663",
+      "green": "#81C995",
+      "pink": "#FF8BCB",
+      "purple": "#C58AF9",
+      "cyan": "#78D9EC",
+      "orange": "#FCAD70"
+    }
+  },
+  "state": {
+    "active": { "tileBorder": "border.subtle", "faviconOpacity": 1 },
+    "asleep": {
+      "tileBorder": "border.subtle",
+      "faviconOpacity": 0.5,
+      "badge": "moon",
+      "badgeColor": "text.secondary"
+    },
+    "stowed": {
+      "tileBorder": "border.control",
+      "tileBorderStyle": "dashed",
+      "tileBg": "transparent",
+      "badge": "archive"
+    }
+  },
+  "font": {
+    "sans": "'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "mono": "'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace",
+    "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 }
+  },
+  "size": {
+    "xs": { "font": "12px", "line": "16px" },
+    "sm": { "font": "13px", "line": "18px" },
+    "base": { "font": "14px", "line": "20px" },
+    "md": { "font": "16px", "line": "22px" },
+    "lg": { "font": "20px", "line": "26px" },
+    "xl": { "font": "24px", "line": "30px", "tracking": "-0.02em" },
+    "2xl": { "font": "32px", "line": "38px", "tracking": "-0.03em" }
+  },
+  "space": {
+    "0": "0",
+    "0.5": "2px",
+    "1": "4px",
+    "1.5": "6px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "5": "20px",
+    "6": "24px",
+    "8": "32px",
+    "10": "40px",
+    "12": "48px"
+  },
+  "radius": { "sm": "6px", "md": "8px", "lg": "12px", "xl": "14px", "full": "9999px" },
+  "shadow": {
+    "popover": "0 12px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px #262B33",
+    "drag": "0 8px 20px rgba(0, 0, 0, 0.45)"
+  },
+  "motion": {
+    "duration": { "fast": "120ms", "base": "180ms", "slow": "240ms" },
+    "ease": {
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "enter": "cubic-bezier(0, 0, 0.2, 1)",
+      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+    }
+  },
+  "layout": {
+    "control": { "sm": "32px", "md": "36px", "lg": "44px" },
+    "favicon": { "sm": "16px", "md": "20px" },
+    "tileMinWidth": "240px",
+    "sidebarWidth": "232px",
+    "panelWidth": "300px",
+    "popup": { "width": "360px", "height": "560px" }
+  }
+}

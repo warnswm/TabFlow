@@ -1,0 +1,12 @@
+node_modules/
+.output/
+.wxt/
+.cache/
+coverage/
+web-ext.config.ts
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

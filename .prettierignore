@@ -1,0 +1,7 @@
+.output/
+.wxt/
+pnpm-lock.yaml
+# Hand-written docs and design sources are not reformatted.
+*.md
+brand-identity/
+design/
