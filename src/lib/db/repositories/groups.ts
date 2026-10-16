@@ -1,0 +1,175 @@
+import { Dexie } from 'dexie';
+import type { TabFlowDB } from '../db';
+import type { GroupColor, GroupState, Id, TabGroup } from '../models';
+import { orderAfterLast } from '../order';
+import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
+import { SpaceRepository } from './spaces';
+
+export interface NewGroup {
+  spaceId: Id;
+  title: string;
+  color: GroupColor;
+  state?: GroupState;
+  chromeGroupId?: number;
+  windowId?: number;
+}
+
+export type GroupPatch = Partial<
+  Pick<TabGroup, 'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId'>
+>;
+
+export class GroupRepository {
+  constructor(
+    private readonly db: TabFlowDB,
+    private readonly clock: Clock = systemClock,
+  ) {}
+
+  /** Live groups of a space sorted by `order`. */
+  async listBySpace(spaceId: Id): Promise<TabGroup[]> {
+    const groups = await this.db.groups
+      .where('[spaceId+order]')
+      .between([spaceId, Dexie.minKey], [spaceId, Dexie.maxKey])
+      .toArray();
+    return liveOnly(groups);
+  }
+
+  /** All live groups (any space, any state). */
+  async listAll(): Promise<TabGroup[]> {
+    return liveOnly(await this.db.groups.toArray());
+  }
+
+  async get(id: Id): Promise<TabGroup | undefined> {
+    const group = await this.db.groups.get(id);
+    return group && isLive(group) ? group : undefined;
+  }
+
+  /** The live group mirroring a native Chrome group. */
+  async findByChromeGroupId(chromeGroupId: number): Promise<TabGroup | undefined> {
+    const groups = await this.db.groups.where('chromeGroupId').equals(chromeGroupId).toArray();
+    return groups.find(isLive);
+  }
+
+  async create(input: NewGroup): Promise<TabGroup> {
+    return this.db.transaction('rw', this.db.spaces, this.db.groups, async () => {
+      const space = await this.db.spaces.get(input.spaceId);
+      if (!space || !isLive(space)) throw new RecordNotFoundError('Space', input.spaceId);
+
+      const now = this.clock();
+      const group: TabGroup = {
+        id: newId(),
+        spaceId: input.spaceId,
+        title: input.title.trim(),
+        color: input.color,
+        state: input.state ?? 'active',
+        order: orderAfterLast(await this.listBySpace(input.spaceId)),
+        chromeGroupId: input.chromeGroupId,
+        windowId: input.windowId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await this.db.groups.add(group);
+      return group;
+    });
+  }
+
+  async update(id: Id, patch: GroupPatch): Promise<void> {
+    await this.requireLive(id);
+    await this.db.groups.update(id, {
+      ...patch,
+      ...(patch.title !== undefined && { title: patch.title.trim() }),
+      updatedAt: this.clock(),
+    });
+  }
+
+  /**
+   * Changes the lifecycle state. A stowed group is no longer on the tab strip,
+   * so its links to Chrome (group, window and tab ids) are cleared.
+   */
+  async setState(id: Id, state: GroupState): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.requireLive(id);
+      const now = this.clock();
+      if (state === 'stowed') {
+        await this.db.groups.update(id, {
+          state,
+          chromeGroupId: undefined,
+          windowId: undefined,
+          updatedAt: now,
+        });
+        await this.db.tabs
+          .where('groupId')
+          .equals(id)
+          .modify({ chromeTabId: undefined, updatedAt: now });
+      } else {
+        await this.db.groups.update(id, { state, updatedAt: now });
+      }
+    });
+  }
+
+  /** Moves the group to another space (or another position); appends to the end by default. */
+  async move(id: Id, spaceId: Id, order?: number): Promise<void> {
+    await this.db.transaction('rw', this.db.spaces, this.db.groups, async () => {
+      await this.requireLive(id);
+      const space = await this.db.spaces.get(spaceId);
+      if (!space || !isLive(space)) throw new RecordNotFoundError('Space', spaceId);
+
+      await this.db.groups.update(id, {
+        spaceId,
+        order: order ?? orderAfterLast(await this.listBySpace(spaceId)),
+        updatedAt: this.clock(),
+      });
+    });
+  }
+
+  /** Moves the group and its live tabs to the trash with one shared `deletedAt`. */
+  async remove(id: Id): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.requireLive(id);
+      const deletedAt = this.clock();
+      await this.db.groups.update(id, { deletedAt });
+      await this.db.tabs.where('groupId').equals(id).filter(isLive).modify({ deletedAt });
+    });
+  }
+
+  /**
+   * Restores the group with the tabs deleted together with it.
+   * If its space is in the trash, the group goes to the default space instead.
+   * The group comes back stowed: its Chrome tabs were closed in the meantime.
+   */
+  async restore(id: Id): Promise<void> {
+    await this.db.transaction('rw', this.db.spaces, this.db.groups, this.db.tabs, async () => {
+      const group = await this.db.groups.get(id);
+      if (!group || group.deletedAt === undefined)
+        throw new RecordNotFoundError('Deleted group', id);
+
+      const space = await this.db.spaces.get(group.spaceId);
+      const spaceId = space && isLive(space) ? space.id : await this.defaultSpaceId();
+      const { deletedAt } = group;
+
+      await this.db.groups.update(id, {
+        deletedAt: undefined,
+        spaceId,
+        state: 'stowed',
+        chromeGroupId: undefined,
+        windowId: undefined,
+        order: orderAfterLast(await this.listBySpace(spaceId)),
+        updatedAt: this.clock(),
+      });
+      await this.db.tabs
+        .where('groupId')
+        .equals(id)
+        .filter((tab) => tab.deletedAt === deletedAt)
+        .modify({ deletedAt: undefined, chromeTabId: undefined });
+    });
+  }
+
+  private async defaultSpaceId(): Promise<Id> {
+    return (await new SpaceRepository(this.db, this.clock).ensureDefault()).id;
+  }
+
+  private async requireLive(id: Id): Promise<TabGroup> {
+    const group = await this.get(id);
+    if (!group) throw new RecordNotFoundError('Group', id);
+    return group;
+  }
+}
