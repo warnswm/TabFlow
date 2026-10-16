@@ -8,7 +8,7 @@ import { TrashRepository } from './repositories/trash';
 
 export * from './models';
 export { TabFlowDB } from './db';
-export { RecordNotFoundError, type Clock } from './repositories/common';
+export { RecordNotFoundError, systemClock, type Clock } from './repositories/common';
 export { DEFAULT_SPACE_NAME } from './repositories/spaces';
 export { TRASH_RETENTION_MS } from './repositories/trash';
 export { orderBetween } from './order';

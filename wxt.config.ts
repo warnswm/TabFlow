@@ -13,6 +13,9 @@ export default defineConfig({
   manifest: {
     name: 'TabFlow',
     description: 'Менеджер вкладок: группы на виду, но не в памяти.',
+    // tabs — адреса и заголовки вкладок; tabGroups — нативные группы; storage — метка сессии браузера;
+    // favicon — иконки сайтов из кэша Chrome (заглушки, позже плитки).
+    permissions: ['tabs', 'tabGroups', 'storage', 'favicon'],
     action: {
       default_title: 'TabFlow',
     },

@@ -1,7 +1,7 @@
 import { Dexie } from 'dexie';
 import type { TabFlowDB } from '../db';
-import type { Id, SavedTab } from '../models';
-import { orderAfterLast, orderBetween } from '../order';
+import type { Id, SavedTab, Timestamp } from '../models';
+import { ORDER_STEP, orderAfterLast, orderBetween } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 import { GroupRepository } from './groups';
 
@@ -94,6 +94,34 @@ export class TabRepository {
         updatedAt: this.clock(),
       });
     });
+  }
+
+  /** Rewrites `order` so that the group's tabs follow `ids` (e.g. the order on the tab strip). */
+  async reorder(ids: readonly Id[]): Promise<void> {
+    const now = this.clock();
+    await this.db.tabs.bulkUpdate(
+      ids.map((id, i) => ({ key: id, changes: { order: (i + 1) * ORDER_STEP, updatedAt: now } })),
+    );
+  }
+
+  /**
+   * Removes the tab for good, bypassing the trash. Only for tabs that are still open in Chrome
+   * and simply left a mirrored group, so nothing is lost.
+   */
+  async forget(id: Id): Promise<void> {
+    await this.db.tabs.delete(id);
+  }
+
+  /**
+   * Brings back the group's tabs deleted at or after `since`. When a group is closed in Chrome,
+   * its tabs disappear one by one before the group does; they are kept with the group.
+   */
+  async restoreDeletedSince(groupId: Id, since: Timestamp): Promise<number> {
+    return this.db.tabs
+      .where('groupId')
+      .equals(groupId)
+      .filter((tab) => tab.deletedAt !== undefined && tab.deletedAt >= since)
+      .modify({ deletedAt: undefined, chromeTabId: undefined, updatedAt: this.clock() });
   }
 
   async remove(id: Id): Promise<void> {

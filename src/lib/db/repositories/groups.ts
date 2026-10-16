@@ -18,6 +18,12 @@ export type GroupPatch = Partial<
   Pick<TabGroup, 'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId'>
 >;
 
+export interface ChromeLink {
+  chromeGroupId: number;
+  windowId: number;
+  tabs: readonly { id: Id; chromeTabId: number }[];
+}
+
 export class GroupRepository {
   constructor(
     private readonly db: TabFlowDB,
@@ -103,6 +109,48 @@ export class GroupRepository {
       } else {
         await this.db.groups.update(id, { state, updatedAt: now });
       }
+    });
+  }
+
+  /** Links a group that came back to the tab strip to its new native group and tabs. */
+  async linkToChrome(id: Id, link: ChromeLink): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.requireLive(id);
+      const now = this.clock();
+      await this.db.groups.update(id, {
+        state: 'active',
+        chromeGroupId: link.chromeGroupId,
+        windowId: link.windowId,
+        updatedAt: now,
+      });
+      await this.db.tabs.bulkUpdate(
+        link.tabs.map(({ id, chromeTabId }) => ({
+          key: id,
+          changes: { chromeTabId, updatedAt: now },
+        })),
+      );
+    });
+  }
+
+  /**
+   * Forgets the Chrome ids of the group and its tabs but keeps the state.
+   * Used at browser start: ids from the previous session may now point to other tabs.
+   */
+  async unlinkFromChrome(id: Id): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.db.groups.update(id, { chromeGroupId: undefined, windowId: undefined });
+      await this.db.tabs.where('groupId').equals(id).modify({ chromeTabId: undefined });
+    });
+  }
+
+  /**
+   * Removes the group and all its tabs for good, bypassing the trash.
+   * Only for groups that hold nothing worth keeping (e.g. dissolved in Chrome, tabs still open).
+   */
+  async forget(id: Id): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.db.groups.delete(id);
+      await this.db.tabs.where('groupId').equals(id).delete();
     });
   }
 

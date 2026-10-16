@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TabFlow</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0e1013;
+        color: #e8eaed;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 560px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      p {
+        margin: 0;
+        color: #9aa3ae;
+        overflow-wrap: anywhere;
+      }
+      a {
+        align-self: flex-start;
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: #2dd4bf;
+        color: #04201c;
+        font-weight: 600;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">TabFlow</h1>
+      <p id="url"></p>
+      <p>Страница загрузится при открытии вкладки.</p>
+      <a id="open" href="#">Открыть</a>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
