@@ -1,4 +1,10 @@
-import { isTileCount, MAX_TILES, MIN_TILES } from '../../tiling/layout';
+import {
+  isPaneArrangement,
+  isTileCount,
+  MAX_TILES,
+  MIN_TILES,
+  type Rect,
+} from '../../tiling/layout';
 import type { TabFlowDB } from '../db';
 import type { Id, LayoutLink, TileLayout } from '../models';
 import { orderAfterLast } from '../order';
@@ -20,7 +26,12 @@ export class LayoutRepository {
     return this.db.layouts.get(id);
   }
 
-  async create(name: string, links: readonly LayoutLink[]): Promise<TileLayout> {
+  /** `rects` — where the panes are (one per link); kept only when they fit. */
+  async create(
+    name: string,
+    links: readonly LayoutLink[],
+    rects?: readonly Rect[],
+  ): Promise<TileLayout> {
     if (!isTileCount(links.length)) {
       throw new RangeError(`A layout holds ${MIN_TILES}–${MAX_TILES} links, got ${links.length}`);
     }
@@ -33,6 +44,7 @@ export class LayoutRepository {
         links: links.map(({ tabId, url, title }) =>
           tabId === undefined ? { url, title } : { tabId, url, title },
         ),
+        ...(isPaneArrangement(rects, links.length) ? { rects: copyRects(rects ?? []) } : {}),
         createdAt: now,
         updatedAt: now,
       };
@@ -49,6 +61,19 @@ export class LayoutRepository {
     if (changed === 0) throw new RecordNotFoundError('Layout', id);
   }
 
+  /** Where the panes are now (moved or resized), one per link; `undefined` — back to the grid. */
+  async setRects(id: Id, rects: readonly Rect[] | undefined): Promise<void> {
+    await this.db.transaction('rw', this.db.layouts, async () => {
+      const layout = await this.db.layouts.get(id);
+      if (!layout) throw new RecordNotFoundError('Layout', id);
+      const fits = isPaneArrangement(rects, layout.links.length);
+      await this.db.layouts.update(id, {
+        rects: fits ? copyRects(rects ?? []) : undefined,
+        updatedAt: this.clock(),
+      });
+    });
+  }
+
   /** Deletes the layout for good; returns it, so that undo can put it back with `restore`. */
   async remove(id: Id): Promise<TileLayout> {
     return this.db.transaction('rw', this.db.layouts, async () => {
@@ -63,4 +88,8 @@ export class LayoutRepository {
   async restore(layout: TileLayout): Promise<void> {
     await this.db.layouts.put(layout);
   }
+}
+
+function copyRects(rects: readonly Rect[]): Rect[] {
+  return rects.map(({ left, top, width, height }) => ({ left, top, width, height }));
 }

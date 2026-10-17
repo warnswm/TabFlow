@@ -123,6 +123,11 @@ export interface TileLayout {
   name: string;
   order: number;
   links: LayoutLink[];
+  /**
+   * Where each pane is, in percent of the viewer (moved and resized at will); the grid of the
+   * number of links when missing. No index: the schema version did not change.
+   */
+  rects?: { left: number; top: number; width: number; height: number }[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

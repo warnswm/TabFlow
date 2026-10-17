@@ -45,3 +45,31 @@ describe('LayoutRepository', () => {
     await expect(t.layouts.rename('missing', 'X')).rejects.toThrow('not found');
   });
 });
+
+describe('LayoutRepository: where the panes are', () => {
+  const rects = [
+    { left: 0, top: 0, width: 70, height: 100 },
+    { left: 60, top: 10, width: 40, height: 50 },
+  ];
+
+  it('keeps the panes moved and resized at will, and goes back to the grid', async () => {
+    const t = setupTestDb();
+    const layout = await t.layouts.create('Учёба', [link(1), link(2)], rects);
+    expect(layout.rects).toEqual(rects);
+
+    const moved = [rects[1] ?? rects[0], rects[0]].filter((r) => r !== undefined);
+    await t.layouts.setRects(layout.id, moved);
+    expect((await t.layouts.get(layout.id))?.rects).toEqual(moved);
+
+    await t.layouts.setRects(layout.id, undefined);
+    expect((await t.layouts.get(layout.id))?.rects).toBeUndefined();
+  });
+
+  it('drops rectangles that do not fit the links', async () => {
+    const t = setupTestDb();
+    const layout = await t.layouts.create('Учёба', [link(1), link(2), link(3)], rects);
+    expect(layout.rects).toBeUndefined();
+    await t.layouts.setRects(layout.id, rects);
+    expect((await t.layouts.get(layout.id))?.rects).toBeUndefined();
+  });
+});

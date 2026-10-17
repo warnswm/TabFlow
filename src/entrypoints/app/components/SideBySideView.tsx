@@ -1,35 +1,82 @@
-import { ArrowLeft, Columns2, ExternalLink, RotateCw, X } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  BookmarkPlus,
+  Columns2,
+  ExternalLink,
+  LayoutGrid,
+  RotateCw,
+  X,
+} from 'lucide-react';
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { displayHost, type Overview } from '@/lib/app/overview';
 import type { Route } from '@/lib/app/route';
-import { layoutPanes, type PickedItem, pickedItems } from '@/lib/app/tile-picker';
+import {
+  defaultLayoutName,
+  layoutPanes,
+  type PickedItem,
+  pickedItems,
+  toLayoutLinks,
+} from '@/lib/app/tile-picker';
 import {
   allowFramesInThisTab,
   type BrowserTab,
   faviconUrl,
   grantedSitePatterns,
   listOpenTabs,
-  showOrOpenPage,
   requestSiteAccess,
+  showOrOpenPage,
 } from '@/lib/browser-api';
 import { repositories, type TileLayout } from '@/lib/db';
 import { patternCovers, sitePattern } from '@/lib/queue/site-access';
-import { paneRects } from '@/lib/tiling/layout';
+import {
+  isPaneArrangement,
+  isTileCount,
+  moveRect,
+  paneRects,
+  type Rect,
+  RESIZE_HANDLES,
+  type ResizeHandle,
+  resizeRect,
+} from '@/lib/tiling/layout';
 import { useLiveQuery } from '@/lib/use-live-query';
 import { runCommand } from '../commands';
+import { navigate } from '../hooks';
 import { useUi } from '../store';
 import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, UNTITLED } from '../ui';
 
 /**
- * «Рядом»: the main page turns into a viewer of 2–4 sites (links or open tabs) side by side,
- * each in a frame of its own (`tiling/layout.ts`). Frames are not tabs: a site loads anew, and
- * the tabs and groups of Chrome stay as they are. Sites that refuse to show in a frame open in a
- * tab instead.
+ * «Рядом»: the main page turns into a viewer of 2–4 sites (links or open tabs), each in a frame of
+ * its own. Panes start in the grid of `tiling/layout.ts`; each one moves by its bar and resizes by
+ * its edges and corners at will — panes may overlap, the one touched last is on top. A saved
+ * layout keeps where its panes are. Frames are not tabs: a site loads anew, and the tabs and groups
+ * of Chrome stay as they are. Sites that refuse to show in a frame open in a tab instead.
  */
 
 export type ViewerRoute = Extract<Route, { view: 'side' | 'layout' }>;
 
 const SITE = /^https?:\/\//;
+
+/** A pane is never smaller than this, in pixels. */
+const MIN_PANE = { width: 240, height: 160 };
+
+/** Where the handles sit in the gap around a pane, and their cursors. */
+const HANDLE_CLASS: Record<ResizeHandle, string> = {
+  n: 'top-0 inset-x-3 h-2 cursor-ns-resize',
+  s: 'bottom-0 inset-x-3 h-2 cursor-ns-resize',
+  e: 'right-0 inset-y-3 w-2 cursor-ew-resize',
+  w: 'left-0 inset-y-3 w-2 cursor-ew-resize',
+  ne: 'top-0 right-0 size-3 cursor-nesw-resize',
+  sw: 'bottom-0 left-0 size-3 cursor-nesw-resize',
+  nw: 'top-0 left-0 size-3 cursor-nwse-resize',
+  se: 'bottom-0 right-0 size-3 cursor-nwse-resize',
+};
 
 /** Removes the headers that forbid framing, before the first frame loads. */
 function useFramesAllowed(): boolean {
@@ -46,6 +93,8 @@ function useFramesAllowed(): boolean {
   return ready;
 }
 
+type Rects = Readonly<Record<string, Rect>>;
+
 export function SideBySideView({ route, overview }: { route: ViewerRoute; overview: Overview }) {
   const layoutId = route.view === 'layout' ? route.layoutId : undefined;
   const loadLayout = useMemo(
@@ -57,6 +106,13 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
   const framesReady = useFramesAllowed();
   const [granted, setGranted] = useState<string[]>();
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  /** Panes moved or resized here, by key; `undefined` — nothing touched yet. */
+  const [moved, setMoved] = useState<Rects>();
+  /** Keys in the order panes were touched: the last one is on top. */
+  const [front, setFront] = useState<string[]>([]);
+  /** A pane is being moved or resized: frames must not take the pointer meanwhile. */
+  const [dragging, setDragging] = useState(false);
+  const areaRef = useRef<HTMLElement>(null);
   // Titles of open tabs outside TabFlow, shown by their address.
   const [pages, setPages] = useState<BrowserTab[]>([]);
   useEffect(() => {
@@ -75,9 +131,94 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
         ? layoutPanes(overview, layout.links)
         : [];
   const shown = panes.filter((pane) => !closed.has(pane.key));
-  const rects = paneRects(shown.length);
+  const savedRects =
+    layout && isPaneArrangement(layout.rects, layout.links.length) ? layout.rects : undefined;
+  const grid = paneRects(shown.length);
   const title = route.view === 'layout' ? layout?.name || UNTITLED : 'Рядом';
   const loading = route.view === 'layout' && layout === undefined;
+  const arranged = moved !== undefined || savedRects !== undefined;
+
+  /** Where a pane is: moved here, else saved in the layout, else the grid of the shown panes. */
+  function rectOf(pane: PickedItem): Rect {
+    const touched = moved?.[pane.key];
+    if (touched) return touched;
+    const saved = savedRects?.[panes.indexOf(pane)];
+    if (saved) return saved;
+    return (
+      grid[shown.indexOf(pane)] ?? paneRects(1)[0] ?? { left: 0, top: 0, width: 100, height: 100 }
+    );
+  }
+
+  /** A saved layout keeps where its panes are; closed panes keep their places too. */
+  function saveArrangement(rects: Rects | undefined) {
+    if (!layout) return;
+    const all =
+      rects &&
+      panes.map((pane, i) => rects[pane.key] ?? savedRects?.[i] ?? paneRects(panes.length)[i]);
+    repositories.layouts
+      .setRects(layout.id, all?.every((rect) => rect !== undefined) ? all : undefined)
+      .catch(() =>
+        useUi.getState().showToast('Расположение рамок не сохранено — раскладка прежняя.'),
+      );
+  }
+
+  function startDrag(event: ReactPointerEvent, pane: PickedItem, handle: ResizeHandle | 'move') {
+    const area = areaRef.current?.getBoundingClientRect();
+    if (event.button !== 0 || !area || area.width === 0 || area.height === 0) return;
+    event.preventDefault();
+    // The first touch fixes every pane where it is: closing one no longer moves the others.
+    const base: Rects = moved ?? Object.fromEntries(shown.map((item) => [item.key, rectOf(item)]));
+    const start = base[pane.key] ?? rectOf(pane);
+    const min = {
+      width: Math.min(100, (MIN_PANE.width / area.width) * 100),
+      height: Math.min(100, (MIN_PANE.height / area.height) * 100),
+    };
+    let last = start;
+    setMoved(base);
+    setFront((keys) => [...keys.filter((key) => key !== pane.key), pane.key]);
+    setDragging(true);
+
+    const onMove = (move: PointerEvent) => {
+      const dx = ((move.clientX - event.clientX) / area.width) * 100;
+      const dy = ((move.clientY - event.clientY) / area.height) * 100;
+      last = handle === 'move' ? moveRect(start, dx, dy) : resizeRect(start, handle, dx, dy, min);
+      setMoved((current) => ({ ...(current ?? base), [pane.key]: last }));
+    };
+    const onEnd = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      setDragging(false);
+      saveArrangement({ ...base, [pane.key]: last });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+  }
+
+  function resetArrangement() {
+    setMoved(undefined);
+    setFront([]);
+    saveArrangement(undefined);
+  }
+
+  /** Saves the panes shown here as a layout, with where they are; the viewer then shows it. */
+  async function saveLayout() {
+    const { showToast } = useUi.getState();
+    if (!isTileCount(shown.length)) return;
+    const name = defaultLayoutName(shown);
+    try {
+      const saved = await repositories.layouts.create(
+        name,
+        toLayoutLinks(shown),
+        arranged ? shown.map(rectOf) : undefined,
+      );
+      showToast(`Раскладка «${name}» сохранена — она в диалоге «Рядом» на главной.`);
+      navigate({ view: 'layout', layoutId: saved.id });
+    } catch {
+      showToast('Раскладка не сохранена. Ссылки остались в своих группах.');
+    }
+  }
 
   function back() {
     window.location.hash = useUi.getState().viewerReturn ?? '#/';
@@ -91,12 +232,27 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
         </button>
         <Columns2 aria-hidden className="size-4 shrink-0 text-accent" />
         <h1 className="min-w-0 truncate text-md font-semibold">{title}</h1>
-        <p className="ml-auto hidden truncate text-xs text-fg-subtle lg:block">
-          Сайт не показывается в рамке — «Открыть во вкладке». Вкладки и группы остались на местах.
+        <p className="ml-auto hidden truncate text-xs text-fg-subtle xl:block">
+          Рамку двигает заголовок, размер меняют края и углы. Сайт не показывается — «Открыть во
+          вкладке».
         </p>
+        <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
+          {arranged && shown.length > 0 && (
+            <button type="button" onClick={resetArrangement} className={BUTTON_SECONDARY}>
+              <LayoutGrid aria-hidden className="size-4" />
+              Выровнять
+            </button>
+          )}
+          {route.view === 'side' && isTileCount(shown.length) && (
+            <button type="button" onClick={() => void saveLayout()} className={BUTTON_SECONDARY}>
+              <BookmarkPlus aria-hidden className="size-4" />
+              Сохранить раскладку
+            </button>
+          )}
+        </div>
       </header>
 
-      <main className="relative min-h-0 flex-1">
+      <main ref={areaRef} className={`relative min-h-0 flex-1 ${dragging ? 'select-none' : ''}`}>
         {shown.length === 0 && !loading ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-fg-muted">
             <p>
@@ -109,9 +265,8 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
             </button>
           </div>
         ) : (
-          shown.map((pane, i) => {
-            const rect = rects[i];
-            if (!rect) return null;
+          shown.map((pane) => {
+            const rect = rectOf(pane);
             return (
               <div
                 key={pane.key}
@@ -121,15 +276,33 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
                   top: `${rect.top}%`,
                   width: `${rect.width}%`,
                   height: `${rect.height}%`,
+                  zIndex: front.indexOf(pane.key) + 1,
                 }}
+                onPointerDownCapture={() =>
+                  setFront((keys) =>
+                    keys.at(-1) === pane.key
+                      ? keys
+                      : [...keys.filter((key) => key !== pane.key), pane.key],
+                  )
+                }
               >
                 <Pane
                   pane={pane}
                   framesReady={framesReady && granted !== undefined}
                   hasAccess={granted?.some((pattern) => patternCovers(pattern, pane.url)) ?? false}
+                  dragging={dragging}
+                  onMoveStart={(event) => startDrag(event, pane, 'move')}
                   onAccess={readGranted}
                   onClose={() => setClosed((keys) => new Set(keys).add(pane.key))}
                 />
+                {RESIZE_HANDLES.map((handle) => (
+                  <div
+                    key={handle}
+                    aria-hidden
+                    onPointerDown={(event) => startDrag(event, pane, handle)}
+                    className={`absolute touch-none ${HANDLE_CLASS[handle]}`}
+                  />
+                ))}
               </div>
             );
           })
@@ -143,12 +316,23 @@ interface PaneProps {
   pane: PickedItem;
   framesReady: boolean;
   hasAccess: boolean;
+  /** A pane is being moved or resized: the frame lets the pointer through. */
+  dragging: boolean;
+  onMoveStart: (event: ReactPointerEvent) => void;
   onAccess: () => void;
   onClose: () => void;
 }
 
-/** One site: a bar with its name and actions, and the frame. */
-function Pane({ pane, framesReady, hasAccess, onAccess, onClose }: PaneProps) {
+/** One site: a bar with its name and actions (dragged to move the pane), and the frame. */
+function Pane({
+  pane,
+  framesReady,
+  hasAccess,
+  dragging,
+  onMoveStart,
+  onAccess,
+  onClose,
+}: PaneProps) {
   const [reload, setReload] = useState(0);
   const site = SITE.test(pane.url);
   const host = displayHost(pane.url);
@@ -171,9 +355,15 @@ function Pane({ pane, framesReady, hasAccess, onAccess, onClose }: PaneProps) {
   return (
     <section
       aria-label={name}
-      className="flex h-full flex-col overflow-hidden rounded-md border border-border bg-surface"
+      className="flex h-full flex-col overflow-hidden rounded-md border border-border bg-surface shadow-popover"
     >
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2 text-sm">
+      <div
+        onPointerDown={(event) => {
+          // The buttons of the bar are clicked, not dragged.
+          if (!(event.target as HTMLElement).closest('button')) onMoveStart(event);
+        }}
+        className="flex h-9 shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border px-2 text-sm active:cursor-grabbing"
+      >
         <img alt="" src={faviconUrl(pane.url, 16)} className="size-4 shrink-0" />
         <span className="min-w-0 truncate font-semibold">{name}</span>
         <span className="hidden shrink-0 text-xs text-fg-subtle sm:inline">{host}</span>
@@ -232,7 +422,7 @@ function Pane({ pane, framesReady, hasAccess, onAccess, onClose }: PaneProps) {
           title={name}
           allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write"
           allowFullScreen
-          className="min-h-0 w-full flex-1 bg-bg"
+          className={`min-h-0 w-full flex-1 bg-bg ${dragging ? 'pointer-events-none' : ''}`}
         />
       ) : null}
     </section>

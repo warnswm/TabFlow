@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { isTileCount, paneRects, type Rect, tileRects } from './layout';
+import {
+  isPaneArrangement,
+  isTileCount,
+  moveRect,
+  paneRects,
+  type Rect,
+  resizeRect,
+  tileRects,
+} from './layout';
 
 const FULL_HD: Rect = { left: 0, top: 0, width: 1920, height: 1040 };
 
@@ -91,5 +99,56 @@ describe('paneRects', () => {
   it('lets the last pane left take the whole area', () => {
     expect(paneRects(1)).toEqual([{ left: 0, top: 0, width: 100, height: 100 }]);
     expect(paneRects(0)).toEqual([]);
+  });
+});
+
+describe('free panes', () => {
+  const pane: Rect = { left: 10, top: 20, width: 40, height: 30 };
+  const min = { width: 10, height: 10 };
+
+  it('moves a pane, keeping it whole inside the area', () => {
+    expect(moveRect(pane, 5, -5)).toEqual({ left: 15, top: 15, width: 40, height: 30 });
+    expect(moveRect(pane, 100, 100)).toEqual({ left: 60, top: 70, width: 40, height: 30 });
+    expect(moveRect(pane, -100, -100)).toEqual({ left: 0, top: 0, width: 40, height: 30 });
+  });
+
+  it('resizes by an edge or a corner; the opposite edges stay', () => {
+    expect(resizeRect(pane, 'e', 10, 99, min)).toEqual({
+      left: 10,
+      top: 20,
+      width: 50,
+      height: 30,
+    });
+    expect(resizeRect(pane, 'nw', -5, -5, min)).toEqual({
+      left: 5,
+      top: 15,
+      width: 45,
+      height: 35,
+    });
+    expect(resizeRect(pane, 'se', 100, 100, min)).toEqual({
+      left: 10,
+      top: 20,
+      width: 90,
+      height: 80,
+    });
+  });
+
+  it('keeps the minimal size and the area', () => {
+    expect(resizeRect(pane, 'w', 50, 0, min)).toEqual({ left: 40, top: 20, width: 10, height: 30 });
+    expect(resizeRect(pane, 's', 0, -50, min)).toEqual({
+      left: 10,
+      top: 20,
+      width: 40,
+      height: 10,
+    });
+    expect(resizeRect(pane, 'n', 0, -50, min)).toEqual({ left: 10, top: 0, width: 40, height: 50 });
+  });
+
+  it('accepts a saved arrangement only when it fits the panes', () => {
+    const grid = paneRects(2);
+    expect(isPaneArrangement(grid, 2)).toBe(true);
+    expect(isPaneArrangement(grid, 3)).toBe(false);
+    expect(isPaneArrangement(undefined, 2)).toBe(false);
+    expect(isPaneArrangement([pane, { ...pane, left: 80 }], 2)).toBe(false);
   });
 });

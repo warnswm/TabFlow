@@ -1,6 +1,7 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useEffect, useMemo, useState } from 'react';
 import { loadOverview, type Overview } from '@/lib/app/overview';
+import { routeHash } from '@/lib/app/route';
 import { buildSearchIndex } from '@/lib/app/search';
 import { repositories } from '@/lib/db';
 import { loadBadgeMode, loadRestoreMode } from '@/lib/settings';
@@ -82,7 +83,8 @@ export default function App() {
   if (route.view === 'side' || route.view === 'layout') {
     return (
       <>
-        <SideBySideView route={route} overview={overview} />
+        {/* Another set of panes (a layout just saved, another one opened) starts afresh. */}
+        <SideBySideView key={routeHash(route)} route={route} overview={overview} />
         <Toaster />
       </>
     );

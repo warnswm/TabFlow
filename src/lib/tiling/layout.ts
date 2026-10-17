@@ -76,3 +76,60 @@ export function paneRects(count: number): Rect[] {
   if (count === 1) return [{ ...WHOLE }];
   return tileRects(Math.min(count, MAX_TILES), WHOLE);
 }
+
+// Free panes: the author moves and resizes each pane at will; panes may overlap.
+
+/** What is dragged to resize a pane: an edge or a corner (sides of the world). */
+export const RESIZE_HANDLES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const;
+export type ResizeHandle = (typeof RESIZE_HANDLES)[number];
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+/** Moves a pane by `dx`, `dy` percent; it stays whole inside the area. */
+export function moveRect(rect: Rect, dx: number, dy: number): Rect {
+  return {
+    ...rect,
+    left: clamp(rect.left + dx, 0, 100 - rect.width),
+    top: clamp(rect.top + dy, 0, 100 - rect.height),
+  };
+}
+
+/**
+ * Resizes a pane by dragging `handle` by `dx`, `dy` percent: the opposite edges stay, the pane
+ * keeps at least `min` (percent of the area) and stays inside the area.
+ */
+export function resizeRect(
+  rect: Rect,
+  handle: ResizeHandle,
+  dx: number,
+  dy: number,
+  min: { width: number; height: number },
+): Rect {
+  let left = rect.left;
+  let top = rect.top;
+  let right = rect.left + rect.width;
+  let bottom = rect.top + rect.height;
+  if (handle.includes('w')) left = clamp(left + dx, 0, right - min.width);
+  if (handle.includes('e')) right = clamp(right + dx, left + min.width, 100);
+  if (handle.includes('n')) top = clamp(top + dy, 0, bottom - min.height);
+  if (handle.includes('s')) bottom = clamp(bottom + dy, top + min.height, 100);
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+/** Saved pane rectangles fit the panes (one per pane, inside the area); otherwise the grid is used. */
+export function isPaneArrangement(rects: readonly Rect[] | undefined, count: number): boolean {
+  return (
+    rects !== undefined &&
+    rects.length === count &&
+    rects.every(
+      (r) =>
+        [r.left, r.top, r.width, r.height].every(Number.isFinite) &&
+        r.left >= 0 &&
+        r.top >= 0 &&
+        r.width > 0 &&
+        r.height > 0 &&
+        r.left + r.width <= 100.001 &&
+        r.top + r.height <= 100.001,
+    )
+  );
+}
