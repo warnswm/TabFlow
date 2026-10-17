@@ -12,10 +12,9 @@ import {
   Trash,
 } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
-import { repositories, type Space, type TabGroup } from '@/lib/db';
-import { runCommand } from '../commands';
-import { useUi } from '../store';
-import { BUTTON_ICON, MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR, UNTITLED } from '../ui';
+import type { Space, TabGroup } from '@/lib/db';
+import { moveGroupToSpace, runCommand } from '../commands';
+import { BUTTON_ICON, MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR } from '../ui';
 
 interface GroupMenuProps {
   group: TabGroup;
@@ -28,12 +27,6 @@ interface GroupMenuProps {
 export function GroupMenu({ group, spaces, onOpenLinks, onEdit, onRestore }: GroupMenuProps) {
   const name = group.title;
   const otherSpaces = spaces.filter((space) => space.id !== group.spaceId);
-
-  async function moveTo(space: Space) {
-    // Pure database change: the group stays where it is in Chrome.
-    await repositories.groups.move(group.id, space.id);
-    useUi.getState().showToast(`Группа «${group.title || UNTITLED}» перенесена в «${space.name}».`);
-  }
 
   return (
     <DropdownMenu.Root>
@@ -91,7 +84,7 @@ export function GroupMenu({ group, spaces, onOpenLinks, onEdit, onRestore }: Gro
                   <DropdownMenu.Item
                     key={space.id}
                     className={MENU_ITEM}
-                    onSelect={() => void moveTo(space)}
+                    onSelect={() => void moveGroupToSpace(group, space)}
                   >
                     <span className="truncate">{space.name}</span>
                   </DropdownMenu.Item>

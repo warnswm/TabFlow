@@ -146,6 +146,12 @@ export interface TabsApi {
   getTab(tabId: number): Promise<BrowserTab | undefined>;
   createTab(input: NewBrowserTab): Promise<BrowserTab>;
   activateTab(tabId: number): Promise<void>;
+  /**
+   * Moves the tab to `index` (its final position) in `windowId` (default: its own window).
+   * Like Chrome, a tab that lands outside its native group leaves the group, and a tab that lands
+   * between two tabs of a group joins it.
+   */
+  moveTab(tabId: number, to: { index: number; windowId?: number }): Promise<void>;
   removeTabs(tabIds: readonly number[]): Promise<void>;
   /**
    * Unloads the tab from memory; it stays on the tab strip. Returns the tab (its id may change),
@@ -268,6 +274,10 @@ export function createBrowserTabsApi(): TabsApi {
 
     async activateTab(tabId) {
       await browser.tabs.update(tabId, { active: true });
+    },
+
+    async moveTab(tabId, { index, windowId }) {
+      await browser.tabs.move(tabId, windowId === undefined ? { index } : { index, windowId });
     },
 
     async removeTabs(tabIds) {

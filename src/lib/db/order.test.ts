@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ORDER_STEP, orderAfterLast, orderBetween } from './order';
+import { ORDER_STEP, orderAfterLast, orderBetween, placeAt } from './order';
 
 describe('orderBetween', () => {
   it('starts an empty list at ORDER_STEP', () => {
@@ -24,5 +24,33 @@ describe('orderAfterLast', () => {
   it('appends after the largest key regardless of array order', () => {
     expect(orderAfterLast([{ order: 3000 }, { order: 1000 }])).toBe(3000 + ORDER_STEP);
     expect(orderAfterLast([])).toBe(ORDER_STEP);
+  });
+});
+
+describe('placeAt', () => {
+  const list = [
+    { id: 'a', order: 1024 },
+    { id: 'b', order: 2048 },
+    { id: 'c', order: 3072 },
+  ];
+
+  it('moves an item of the same list between its new neighbours', () => {
+    expect(placeAt(list, 'a', 2)).toEqual({ order: 3072 + ORDER_STEP });
+    expect(placeAt(list, 'c', 0)).toEqual({ order: 0 });
+    expect(placeAt(list, 'a', 1)).toEqual({ order: 2560 });
+  });
+
+  it('inserts an item from another list and clamps the index', () => {
+    expect(placeAt(list, 'x', 1)).toEqual({ order: 1536 });
+    expect(placeAt(list, 'x', 99)).toEqual({ order: 3072 + ORDER_STEP });
+    expect(placeAt([], 'x', 0)).toEqual({ order: ORDER_STEP });
+  });
+
+  it('asks to rewrite the whole list when the neighbours are too close', () => {
+    const tight = [
+      { id: 'a', order: 1 },
+      { id: 'b', order: 1 + 1e-9 },
+    ];
+    expect(placeAt(tight, 'x', 1)).toEqual({ reorder: ['a', 'x', 'b'] });
   });
 });

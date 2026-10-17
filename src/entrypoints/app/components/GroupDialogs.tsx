@@ -1,11 +1,16 @@
-import { Check, X } from 'lucide-react';
-import { Dialog } from 'radix-ui';
+import { closestCenter, DndContext, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Check, ChevronRight, Ellipsis, FolderInput, GripVertical, Trash, X } from 'lucide-react';
+import { Dialog, DropdownMenu } from 'radix-ui';
 import { type FormEvent, useState } from 'react';
-import { displayHost, type GroupView } from '@/lib/app/overview';
+import { displayHost, type GroupView, type SpaceView } from '@/lib/app/overview';
+import { applyOrder, moveId } from '@/lib/app/reorder';
 import { faviconUrl } from '@/lib/browser-api';
 import { count, TABS } from '@/lib/command-messages';
-import { GROUP_COLORS, type GroupColor, type TabGroup } from '@/lib/db';
+import { GROUP_COLORS, type GroupColor, type SavedTab, type TabGroup } from '@/lib/db';
 import { runCommand } from '../commands';
+import { announcements, type DragData, screenReaderInstructions, useDragSensors } from '../dnd';
 import {
   BUTTON_ICON,
   BUTTON_PRIMARY,
@@ -15,16 +20,37 @@ import {
   GROUP_COLOR_NAME,
   GROUP_DOT,
   INPUT,
+  MENU_CONTENT,
+  MENU_ITEM,
+  MENU_SEPARATOR,
   UNTITLED,
 } from '../ui';
+import { Highlighted } from './Highlighted';
 
 interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-/** The links of a group: open one (or show its tab), delete one to the trash. */
-export function GroupLinksDialog({ view, open, onOpenChange }: DialogProps & { view?: GroupView }) {
+interface LinksProps {
+  view?: GroupView;
+  /** All spaces with their groups: targets of «Перенести в группу». */
+  spaces: readonly SpaceView[];
+  /** Matched words of the search, highlighted in the titles. */
+  terms: readonly string[];
+}
+
+/**
+ * The links of a group: open one (or show its tab), drag to a new place, move to another group,
+ * delete to the trash.
+ */
+export function GroupLinksDialog({
+  view,
+  spaces,
+  terms,
+  open,
+  onOpenChange,
+}: DialogProps & LinksProps) {
   if (!view) return null;
   const { group, tabs } = view;
   const title = group.title || UNTITLED;
@@ -46,46 +72,209 @@ export function GroupLinksDialog({ view, open, onOpenChange }: DialogProps & { v
             </Dialog.Close>
           </div>
           <Dialog.Description className="sr-only">
-            Ссылки группы: открыть или удалить в корзину.
+            Ссылки группы: открыть, перетащить на другое место, перенести в другую группу или
+            удалить в корзину.
           </Dialog.Description>
 
           {tabs.length === 0 ? (
             <p className="text-sm text-fg-muted">В группе нет ссылок.</p>
           ) : (
-            <ul className="-mx-2 flex min-h-0 flex-col overflow-y-auto">
-              {tabs.map((tab) => (
-                <li
-                  key={tab.id}
-                  className="group/link flex items-center gap-1 rounded-md hover:bg-surface-raised"
-                >
-                  <button
-                    type="button"
-                    onClick={() => runCommand({ type: 'openTab', tabId: tab.id }, { quiet: true })}
-                    className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
-                  >
-                    <img src={faviconUrl(tab.url, 16)} alt="" className="size-4 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{tab.title || tab.url}</span>
-                    <span className="max-w-40 shrink-0 truncate text-xs text-fg-subtle">
-                      {displayHost(tab.url)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Удалить ссылку «${tab.title || tab.url}»`}
-                    onClick={() =>
-                      runCommand({ type: 'deleteTab', tabId: tab.id }, { name: group.title })
-                    }
-                    className={`${BUTTON_ICON} mr-1 opacity-0 group-hover/link:opacity-100 focus-visible:opacity-100`}
-                  >
-                    <X aria-hidden className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <LinkList group={group} tabs={tabs} spaces={spaces} terms={terms} />
           )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+interface LinkListProps {
+  group: TabGroup;
+  tabs: readonly SavedTab[];
+  spaces: readonly SpaceView[];
+  terms: readonly string[];
+}
+
+/** Links in their order; a new order goes to the background, which moves the open tabs too. */
+function LinkList({ group, tabs, spaces, terms }: LinkListProps) {
+  const sensors = useDragSensors();
+  // Right after a drop the new order is shown until the database change arrives.
+  const [dropped, setDropped] = useState<{ base: readonly SavedTab[]; ids: string[] }>();
+  const ordered = dropped?.base === tabs ? applyOrder(tabs, dropped.ids, (tab) => tab.id) : tabs;
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    const tabId = String(active.id);
+    const ids = moveId(
+      ordered.map((tab) => tab.id),
+      tabId,
+      String(over.id),
+    );
+    setDropped({ base: tabs, ids });
+    void runCommand(
+      { type: 'moveTab', tabId, groupId: group.id, index: ids.indexOf(tabId) },
+      { quiet: true },
+    ).then((response) => {
+      if (!response?.ok) setDropped(undefined);
+    });
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      accessibility={{ announcements, screenReaderInstructions }}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext items={ordered.map((tab) => tab.id)} strategy={verticalListSortingStrategy}>
+        <ul className="-mx-2 flex min-h-0 flex-col overflow-y-auto">
+          {ordered.map((tab) => (
+            <LinkRow key={tab.id} tab={tab} group={group} spaces={spaces} terms={terms} />
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function LinkRow({
+  tab,
+  group,
+  spaces,
+  terms,
+}: {
+  tab: SavedTab;
+  group: TabGroup;
+  spaces: readonly SpaceView[];
+  terms: readonly string[];
+}) {
+  const name = tab.title || tab.url;
+  const data: DragData = { type: 'link', tab };
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id, data, attributes: { roleDescription: 'ссылка' } });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`flex items-center gap-1 rounded-md hover:bg-surface-raised ${isDragging ? 'relative z-10 bg-surface-raised shadow-drag' : ''}`}
+    >
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={`Переместить ссылку «${name}»`}
+        className={`${BUTTON_ICON} ml-1 cursor-grab text-fg-subtle`}
+      >
+        <GripVertical aria-hidden className="size-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => runCommand({ type: 'openTab', tabId: tab.id }, { quiet: true })}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-1.5 text-left"
+      >
+        <img src={faviconUrl(tab.url, 16)} alt="" className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">
+          <Highlighted text={name} terms={terms} />
+        </span>
+        <span className="max-w-40 shrink-0 truncate text-xs text-fg-subtle">
+          {displayHost(tab.url)}
+        </span>
+      </button>
+      <LinkMenu tab={tab} group={group} spaces={spaces} />
+    </li>
+  );
+}
+
+function LinkMenu({
+  tab,
+  group,
+  spaces,
+}: {
+  tab: SavedTab;
+  group: TabGroup;
+  spaces: readonly SpaceView[];
+}) {
+  const name = tab.title || tab.url;
+  const targets = spaces
+    .map(({ space, groups }) => ({
+      space,
+      groups: groups.filter((item) => item.group.id !== group.id),
+    }))
+    .filter((item) => item.groups.length > 0);
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        aria-label={`Действия со ссылкой «${name}»`}
+        className={`${BUTTON_ICON} mr-1`}
+      >
+        <Ellipsis aria-hidden className="size-4" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="end" sideOffset={4} className={MENU_CONTENT}>
+          <DropdownMenu.Sub>
+            <DropdownMenu.SubTrigger className={MENU_ITEM} disabled={targets.length === 0}>
+              <FolderInput aria-hidden /> Перенести в группу
+              <ChevronRight aria-hidden className="ml-auto" />
+            </DropdownMenu.SubTrigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.SubContent
+                sideOffset={6}
+                className={`${MENU_CONTENT} max-h-[60vh] max-w-72 overflow-y-auto`}
+              >
+                {targets.map(({ space, groups }) => (
+                  <DropdownMenu.Group key={space.id}>
+                    <DropdownMenu.Label className="px-2 pt-1.5 pb-1 text-xs text-fg-subtle">
+                      {space.name}
+                    </DropdownMenu.Label>
+                    {groups.map(({ group: target, tabs }) => (
+                      <DropdownMenu.Item
+                        key={target.id}
+                        className={MENU_ITEM}
+                        onSelect={() =>
+                          void runCommand(
+                            {
+                              type: 'moveTab',
+                              tabId: tab.id,
+                              groupId: target.id,
+                              index: tabs.length,
+                            },
+                            { name: target.title },
+                          )
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`size-2.5 shrink-0 rounded-full ${GROUP_DOT[target.color]}`}
+                        />
+                        <span className="truncate">{target.title || UNTITLED}</span>
+                      </DropdownMenu.Item>
+                    ))}
+                  </DropdownMenu.Group>
+                ))}
+              </DropdownMenu.SubContent>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Sub>
+          <DropdownMenu.Separator className={MENU_SEPARATOR} />
+          <DropdownMenu.Item
+            className={`${MENU_ITEM} text-danger data-highlighted:text-danger`}
+            onSelect={() =>
+              void runCommand({ type: 'deleteTab', tabId: tab.id }, { name: group.title })
+            }
+          >
+            <Trash aria-hidden /> Удалить
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

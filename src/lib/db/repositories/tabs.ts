@@ -1,7 +1,7 @@
 import { Dexie } from 'dexie';
 import type { TabFlowDB } from '../db';
 import type { Id, SavedTab, Timestamp } from '../models';
-import { ORDER_STEP, orderAfterLast, orderBetween } from '../order';
+import { ORDER_STEP, orderAfterLast, orderBetween, placeAt } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 import { GroupRepository } from './groups';
 
@@ -98,6 +98,27 @@ export class TabRepository {
         order: order ?? orderAfterLast(await this.listByGroup(groupId)),
         updatedAt: this.clock(),
       });
+    });
+  }
+
+  /**
+   * Puts the tab at `index` among the tabs of `groupId` — its own group or another one.
+   * A tab moved to another group keeps its Chrome id: the caller decides what happens to the tab.
+   */
+  async place(id: Id, groupId: Id, index: number): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
+      await this.requireLive(id);
+      const group = await this.db.groups.get(groupId);
+      if (!group || !isLive(group)) throw new RecordNotFoundError('Group', groupId);
+
+      const now = this.clock();
+      const placement = placeAt(await this.listByGroup(groupId), id, index);
+      if ('order' in placement) {
+        await this.db.tabs.update(id, { groupId, order: placement.order, updatedAt: now });
+        return;
+      }
+      await this.db.tabs.update(id, { groupId, updatedAt: now });
+      await this.reorder(placement.reorder);
     });
   }
 

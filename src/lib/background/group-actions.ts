@@ -296,7 +296,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * at least require `committed`. Returns the tab id (discarding may change it).
  * If it never works, the tab simply stays loaded.
  */
-async function discardWhen(
+export async function discardWhen(
   ctx: BackgroundContext,
   tabId: number,
   ready: (tab: BrowserTab, poll: number) => boolean,

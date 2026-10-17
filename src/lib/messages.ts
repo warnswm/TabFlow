@@ -29,7 +29,12 @@ export type Command =
    */
   | { type: 'restoreDeleted'; kind: TrashKind; id: Id; reopenGroupIds?: Id[]; mode?: RestoreMode }
   /** Shows the link's open tab, or opens the link in a new tab. */
-  | { type: 'openTab'; tabId: Id };
+  | { type: 'openTab'; tabId: Id }
+  /**
+   * Puts a link at `index` of a group — its own (new order) or another one. The open tab follows
+   * on the tab strip; the last link of a group leaves the empty group in the trash.
+   */
+  | { type: 'moveTab'; tabId: Id; groupId: Id; index: number };
 
 /**
  * How restored tabs wait until opened (see `restoreGroup`). Both are kept: the choice moves to
@@ -49,6 +54,17 @@ export interface CommandResult {
   failed: number;
   /** Groups whose tabs this command closed: undo puts them back on the tab strip. */
   closedGroupIds: Id[];
+  /** `moveTab`: where the link was, for undo. */
+  movedFrom?: MovedFrom;
+}
+
+export interface MovedFrom {
+  groupId: Id;
+  index: number;
+  /** The link was the last one: its group went to the trash. */
+  groupDeleted: boolean;
+  /** That group was on the tab strip. */
+  groupWasOnStrip: boolean;
 }
 
 export type CommandErrorCode =
@@ -83,6 +99,7 @@ const isOptional = (value: unknown, check: (value: unknown) => boolean) =>
 const isMode = (value: unknown) => RESTORE_MODES.includes(value as RestoreMode);
 const isColor = (value: unknown) => GROUP_COLORS.includes(value as GroupColor);
 const isTitle = (value: unknown) => typeof value === 'string';
+const isIndex = (value: unknown) => Number.isInteger(value) && (value as number) >= 0;
 
 /** Allowed fields per command; anything else in the message makes it invalid. */
 const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean>> = {
@@ -105,6 +122,7 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
     mode: (v) => isOptional(v, isMode),
   },
   openTab: { tabId: isId },
+  moveTab: { tabId: isId, groupId: isId, index: isIndex },
 };
 
 /** Validates a message received by the background. */

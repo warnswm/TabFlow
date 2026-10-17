@@ -14,6 +14,7 @@ import { collapseAll } from './collapse';
 import type { BackgroundContext } from './context';
 import { editGroup, openTab, restoreGroup, sleepGroup, stowGroup } from './group-actions';
 import { handleTabsEvent, reconcileAll } from './mirror';
+import { moveTab } from './move-tab';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 
@@ -48,6 +49,8 @@ function runCommand(ctx: BackgroundContext, command: Command): Promise<CommandRe
       return deleteTab(ctx, command.tabId);
     case 'restoreDeleted':
       return restoreDeleted(ctx, command.kind, command.id, command.reopenGroupIds, command.mode);
+    case 'moveTab':
+      return moveTab(ctx, command.tabId, command.groupId, command.index);
     case 'openTab':
       return openTab(ctx, command.tabId);
   }

@@ -1,7 +1,7 @@
 import { Dexie } from 'dexie';
 import type { TabFlowDB } from '../db';
 import type { GroupColor, GroupState, Id, TabGroup } from '../models';
-import { orderAfterLast } from '../order';
+import { ORDER_STEP, orderAfterLast, placeAt } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 import { SpaceRepository } from './spaces';
 
@@ -169,6 +169,29 @@ export class GroupRepository {
         order: order ?? orderAfterLast(await this.listBySpace(spaceId)),
         updatedAt: this.clock(),
       });
+    });
+  }
+
+  /**
+   * Puts the group at `index` among the groups of `spaceId` — its own space or another one
+   * (drag & drop). Only the moved group is written, unless its neighbours leave no room for a key.
+   */
+  async place(id: Id, spaceId: Id, index: number): Promise<void> {
+    await this.db.transaction('rw', this.db.spaces, this.db.groups, async () => {
+      await this.requireLive(id);
+      const space = await this.db.spaces.get(spaceId);
+      if (!space || !isLive(space)) throw new RecordNotFoundError('Space', spaceId);
+
+      const now = this.clock();
+      const placement = placeAt(await this.listBySpace(spaceId), id, index);
+      if ('order' in placement) {
+        await this.db.groups.update(id, { spaceId, order: placement.order, updatedAt: now });
+        return;
+      }
+      await this.db.groups.update(id, { spaceId, updatedAt: now });
+      await this.db.groups.bulkUpdate(
+        placement.reorder.map((key, i) => ({ key, changes: { order: (i + 1) * ORDER_STEP } })),
+      );
     });
   }
 

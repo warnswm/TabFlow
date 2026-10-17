@@ -82,5 +82,9 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
       return `Восстановлено из корзины.${failedNote}`;
     case 'openTab':
       return 'Вкладка открыта.';
+    case 'moveTab':
+      return groups > 0
+        ? `Ссылка перенесена в ${title}. Пустая группа удалена — её можно вернуть из корзины в течение 30 дней.${failedNote}`
+        : `Ссылка перенесена в ${title}.${failedNote}`;
   }
 }

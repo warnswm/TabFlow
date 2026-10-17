@@ -1,6 +1,6 @@
 import type { TabFlowDB } from '../db';
 import type { Id, Space } from '../models';
-import { orderAfterLast, orderBetween } from '../order';
+import { ORDER_STEP, orderAfterLast, orderBetween, placeAt } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 
 export const DEFAULT_SPACE_NAME = 'Входящие';
@@ -66,6 +66,29 @@ export class SpaceRepository {
   async move(id: Id, order: number): Promise<void> {
     await this.requireLive(id);
     await this.db.spaces.update(id, { order, updatedAt: this.clock() });
+  }
+
+  /**
+   * Puts the space at `index` among the other spaces (drag & drop in the sidebar).
+   * «Входящие» always stays first and is not counted.
+   */
+  async place(id: Id, index: number): Promise<void> {
+    await this.db.transaction('rw', this.db.spaces, async () => {
+      const space = await this.requireLive(id);
+      if (space.isDefault) throw new Error('The default space stays first');
+
+      const now = this.clock();
+      const others = (await this.list()).filter((item) => !item.isDefault);
+      const placement = placeAt(others, id, index);
+      if ('order' in placement) {
+        await this.db.spaces.update(id, { order: placement.order, updatedAt: now });
+        return;
+      }
+      await this.db.spaces.bulkUpdate(
+        placement.reorder.map((key, i) => ({ key, changes: { order: (i + 1) * ORDER_STEP } })),
+      );
+      await this.db.spaces.update(id, { updatedAt: now });
+    });
   }
 
   /** Moves the space, its groups and their tabs to the trash with one shared `deletedAt`. */

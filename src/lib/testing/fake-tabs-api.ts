@@ -250,6 +250,41 @@ export class FakeTabsApi implements TabsApi {
     }
   }
 
+  async moveTab(tabId: number, to: { index: number; windowId?: number }): Promise<void> {
+    this.maybeFail('moveTab');
+    const tab = this.require(tabId);
+    if (to.windowId !== undefined && to.windowId !== tab.windowId) {
+      if (!this.windows.includes(to.windowId)) throw new Error(`No window ${to.windowId}`);
+      const from = tab.windowId;
+      tab.windowId = to.windowId;
+      if (tab.active) {
+        tab.active = false;
+        const next = this.tabs.find((t) => t.windowId === from && t !== tab);
+        if (next) this.setActive(next);
+      }
+    }
+    this.moveToIndex(tabId, to.index < 0 ? Number.MAX_SAFE_INTEGER : to.index);
+
+    // Like Chrome: outside its group the tab leaves it; between two tabs of a group it joins.
+    const windowTabs = this.tabs.filter((t) => t.windowId === tab.windowId);
+    const at = windowTabs.indexOf(tab);
+    const left = windowTabs[at - 1];
+    const right = windowTabs[at + 1];
+    const group = this.groups.get(tab.groupId);
+    const besideOwnGroup =
+      left?.groupId === tab.groupId ||
+      right?.groupId === tab.groupId ||
+      !this.tabs.some((t) => t !== tab && t.groupId === tab.groupId); // the only tab of its group
+    if (left && right && left.groupId !== NO_GROUP && left.groupId === right.groupId) {
+      tab.groupId = left.groupId;
+    } else if (tab.groupId !== NO_GROUP && (group?.windowId !== tab.windowId || !besideOwnGroup)) {
+      tab.groupId = NO_GROUP;
+    }
+    this.emit({ type: 'tabUpdated', tabId });
+    this.dropEmptyGroups();
+    this.dropEmptyWindows();
+  }
+
   async removeTabs(tabIds: readonly number[]): Promise<void> {
     this.maybeFail('removeTabs');
     for (const tabId of tabIds) this.require(tabId);
@@ -263,12 +298,7 @@ export class FakeTabsApi implements TabsApi {
       this.emit({ type: 'tabRemoved', tabId, windowClosing: false });
     }
     this.dropEmptyGroups();
-    for (const windowId of [...this.windows]) {
-      if (!this.tabs.some((tab) => tab.windowId === windowId)) {
-        this.windows = this.windows.filter((id) => id !== windowId);
-        this.emit({ type: 'windowRemoved', windowId });
-      }
-    }
+    this.dropEmptyWindows();
   }
 
   async discardTab(tabId: number): Promise<BrowserTab | undefined> {
@@ -369,6 +399,16 @@ export class FakeTabsApi implements TabsApi {
     if (!group) throw new Error(`No group ${groupId}`);
     Object.assign(group, update);
     this.emit({ type: 'groupChanged', groupId });
+  }
+
+  /** A window without tabs closes. */
+  private dropEmptyWindows(): void {
+    for (const windowId of [...this.windows]) {
+      if (!this.tabs.some((tab) => tab.windowId === windowId)) {
+        this.windows = this.windows.filter((id) => id !== windowId);
+        this.emit({ type: 'windowRemoved', windowId });
+      }
+    }
   }
 
   private dropEmptyGroups(): void {

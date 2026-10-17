@@ -26,6 +26,25 @@ export function undoCommands(
       return [{ type: 'restoreDeleted', kind: 'space', id: command.spaceId, reopenGroupIds, mode }];
     case 'deleteTab':
       return [{ type: 'restoreDeleted', kind: 'tab', id: command.tabId, reopenGroupIds, mode }];
+    case 'moveTab': {
+      const from = result.movedFrom;
+      if (!from) return undefined;
+      const back: Command = {
+        type: 'moveTab',
+        tabId: command.tabId,
+        groupId: from.groupId,
+        index: from.index,
+      };
+      if (!from.groupDeleted) return [back];
+      // The emptied group comes back from the trash, gets its link and returns to the strip.
+      return [
+        { type: 'restoreDeleted', kind: 'group', id: from.groupId },
+        back,
+        ...(from.groupWasOnStrip
+          ? [{ type: 'restoreGroup', groupId: from.groupId, mode } as const]
+          : []),
+      ];
+    }
     default:
       // Sleep is undone by «Разбудить»; restoring, editing and opening need no undo.
       return undefined;
