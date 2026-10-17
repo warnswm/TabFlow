@@ -61,6 +61,35 @@ describe('QueueRepository', () => {
     expect((await t.queue.get(a.id))?.watchedAt).toBeUndefined();
   });
 
+  it('finds a video by any of its addresses', async () => {
+    const t = setupTestDb();
+    const { item } = await t.queue.add({
+      url: 'https://vkvideo.ru/video-1_2',
+      title: 'Доклад',
+      site: 'vkvideo.ru',
+    });
+
+    expect((await t.queue.findByUrl('https://vkvideo.ru/video-1_2?t=95#reply'))?.id).toBe(item.id);
+    expect(await t.queue.findByUrl('https://vkvideo.ru/video-1_3')).toBeUndefined();
+    expect((await t.queue.add({ ...item, url: 'https://vkvideo.ru/video-1_2#x' })).created).toBe(
+      false,
+    );
+  });
+
+  it('puts a video at a place of the queue and updates what was learned about it', async () => {
+    const t = setupTestDb();
+    const { item: a } = await t.queue.add(video('a'));
+    await t.queue.add(video('b'));
+    const { item: c } = await t.queue.add(video('c'));
+
+    await t.queue.place(c.id, 0);
+    await t.queue.place(a.id, 2);
+    expect((await t.queue.list()).map((item) => item.videoId)).toEqual(['c', 'b', 'a']);
+
+    await t.queue.update(a.id, { durationSec: 600, channel: 'Канал' });
+    expect(await t.queue.get(a.id)).toMatchObject({ durationSec: 600, channel: 'Канал' });
+  });
+
   it('stores playback progress and duration', async () => {
     const t = setupTestDb();
     const { item } = await t.queue.add(video('a'));

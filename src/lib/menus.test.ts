@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Space, TabGroup } from './db/models';
 import { isCommand } from './messages';
-import { buildMenu, MENU_GROUP_LIMIT, MENU_IDS, menuCommand } from './menus';
+import { buildMenu, MENU_GROUP_LIMIT, MENU_IDS, menuCommand, menuQueueUrl } from './menus';
 
 const space = (id: string, name: string): Space => ({
   id,
@@ -26,7 +26,7 @@ const group = (id: string, title: string, spaceId: string, updatedAt: number): T
 describe('context menu', () => {
   const spaces = [space('w', 'Работа'), space('l', 'Учёба')];
 
-  it('has the page, link and icon items, the queue ones greyed out', () => {
+  it('has the page, link and icon items', () => {
     const menu = buildMenu([], spaces);
     expect(menu.map((item) => [item.id, item.contexts.join(',')])).toEqual([
       ['stow', 'page'],
@@ -35,12 +35,10 @@ describe('context menu', () => {
       ['save-link', 'link'],
       ['queue-link', 'link'],
       ['collapse-all', 'action'],
+      ['open-queue', 'action'],
       ['open-app', 'action'],
     ]);
-    expect(menu.filter((item) => item.enabled === false).map((item) => item.id)).toEqual([
-      'queue-page',
-      'queue-link',
-    ]);
+    expect(menu.filter((item) => item.enabled === false)).toEqual([]);
   });
 
   it('lists the most recently changed groups under «В группу ▸» with their space', () => {
@@ -92,8 +90,23 @@ describe('context menu', () => {
     });
     expect(menuCommand({ itemId: 'collapse-all' })).toEqual({ type: 'collapseAll' });
     expect(menuCommand({ itemId: 'open-app' })).toEqual({ type: 'openApp' });
-    expect(menuCommand({ itemId: 'queue-page', tabId: 5 })).toBeUndefined();
+    expect(menuCommand({ itemId: 'queue-page', tabId: 5 })).toEqual({
+      type: 'queueTab',
+      chromeTabId: 5,
+    });
+    expect(menuCommand({ itemId: 'queue-link', linkUrl: 'https://a.example/v' })).toEqual({
+      type: 'queueLink',
+      url: 'https://a.example/v',
+    });
+    expect(menuCommand({ itemId: 'open-queue', windowId: 1 })).toBeUndefined();
     expect(menuCommand({ itemId: 'group:g1' })).toBeUndefined();
+  });
+
+  it('names the page whose site a queue item needs access to', () => {
+    const at = { pageUrl: 'https://a.example/', linkUrl: 'https://b.example/v' };
+    expect(menuQueueUrl({ itemId: 'queue-page', ...at })).toBe('https://a.example/');
+    expect(menuQueueUrl({ itemId: 'queue-link', ...at })).toBe('https://b.example/v');
+    expect(menuQueueUrl({ itemId: 'stow', ...at })).toBeUndefined();
   });
 
   it('makes commands the background accepts', () => {

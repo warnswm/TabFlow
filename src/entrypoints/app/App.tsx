@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadOverview, type Overview } from '@/lib/app/overview';
 import { buildSearchIndex } from '@/lib/app/search';
 import { repositories } from '@/lib/db';
-import { loadRestoreMode } from '@/lib/settings';
+import { loadBadgeMode, loadRestoreMode } from '@/lib/settings';
 import { useLiveQuery } from '@/lib/use-live-query';
 import { CommandPalette } from './components/CommandPalette';
 import { GroupDragChip } from './components/GroupTile';
@@ -52,6 +52,7 @@ export default function App() {
     // «Входящие» always exists, even before the first collapse.
     void repositories.spaces.ensureDefault();
     void loadRestoreMode().then((mode) => useUi.getState().setRestoreMode(mode, false));
+    void loadBadgeMode().then((mode) => useUi.getState().setBadgeMode(mode, false));
 
     function onKeyDown(event: KeyboardEvent) {
       // `code`, not `key`: works with the Russian layout too.

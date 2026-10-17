@@ -93,6 +93,13 @@ export interface QueueItem extends BaseRecord {
   durationSec?: number;
   /** Last known playback position. */
   positionSec: number;
+  /** Icon of the page (Chrome's favicon cache is used when missing) — for videos without a thumbnail. */
+  favIconUrl?: string;
+  /**
+   * The page plays the video in a frame of another site (an embedded player): TabFlow needs access
+   * to these origins too to read the duration. Set by the content script, cleared once known.
+   */
+  playerOrigins?: string[];
   status: QueueStatus;
   order: number;
   watchedAt?: Timestamp;

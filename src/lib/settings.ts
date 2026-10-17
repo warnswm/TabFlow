@@ -1,9 +1,10 @@
 /**
- * User settings in `storage.local`. Stage 3 keeps only the restore mode, chosen on the main page;
- * the settings page comes at stage 7.
+ * User settings in `storage.local`: the restore mode and what the badge counts, chosen in the
+ * «Настройки» menu of the main page; the settings page comes at stage 7.
  */
-import { readSetting, writeSetting } from './browser-api';
+import { onSettingsChanged, readSetting, writeSetting } from './browser-api';
 import { RESTORE_MODES, type RestoreMode } from './messages';
+import { BADGE_MODES, type BadgeMode } from './summary';
 
 const RESTORE_MODE_KEY = 'tabflow.restoreMode';
 export const DEFAULT_RESTORE_MODE: RestoreMode = 'placeholder';
@@ -20,4 +21,33 @@ export async function loadRestoreMode(): Promise<RestoreMode> {
 
 export async function saveRestoreMode(mode: RestoreMode): Promise<void> {
   await writeSetting(RESTORE_MODE_KEY, mode);
+}
+
+const BADGE_MODE_KEY = 'tabflow.badgeMode';
+export const DEFAULT_BADGE_MODE: BadgeMode = 'today';
+
+export function parseBadgeMode(value: unknown): BadgeMode {
+  return BADGE_MODES.includes(value as BadgeMode) ? (value as BadgeMode) : DEFAULT_BADGE_MODE;
+}
+
+export async function loadBadgeMode(): Promise<BadgeMode> {
+  return parseBadgeMode(await readSetting(BADGE_MODE_KEY));
+}
+
+export async function saveBadgeMode(mode: BadgeMode): Promise<void> {
+  await writeSetting(BADGE_MODE_KEY, mode);
+}
+
+/** The settings the background reads; tests pass their own. */
+export interface BackgroundSettings {
+  badgeMode(): Promise<BadgeMode>;
+}
+
+export const storedSettings: BackgroundSettings = { badgeMode: loadBadgeMode };
+
+/** Calls back when the badge setting changes on a page (the background redraws the badge). */
+export function onBadgeModeChanged(callback: () => void): void {
+  onSettingsChanged((keys) => {
+    if (keys.includes(BADGE_MODE_KEY)) callback();
+  });
 }

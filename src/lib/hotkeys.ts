@@ -1,7 +1,7 @@
 /**
  * Keyboard shortcuts (`commands` in the manifest — `wxt.config.ts` takes them from here).
  * Chrome accepts at most 4 suggested keys; the author can change them at
- * chrome://extensions/shortcuts. Opening the popup has no key by default.
+ * chrome://extensions/shortcuts. The popup and the queue have no key by default.
  * No runtime imports: the WXT config loads this file.
  */
 import type { Command } from './messages';
@@ -23,6 +23,8 @@ export const HOTKEYS = {
     suggested_key: { default: 'Alt+Shift+M' },
     description: 'Открыть TabFlow',
   },
+  'queue-current': { description: 'Добавить текущую вкладку в очередь «на потом»' },
+  'open-queue': { description: 'Открыть очередь в боковой панели' },
   _execute_action: { description: 'Открыть окно TabFlow на панели расширений' },
 };
 
@@ -40,8 +42,11 @@ export function hotkeyCommand(name: string, tabId?: number): Command | undefined
       return { type: 'sleepCurrent', ...onTab };
     case 'open-app':
       return { type: 'openApp' };
+    case 'queue-current':
+      return { type: 'queueTab', ...onTab };
     default:
-      return undefined; // `_execute_action` is handled by Chrome
+      // `_execute_action` is handled by Chrome; `open-queue` opens the side panel in the handler.
+      return undefined;
   }
 }
 

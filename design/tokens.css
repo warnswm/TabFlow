@@ -29,6 +29,7 @@
   /* Status */
   --color-danger: #f87171;
   --color-warning: #fbbf24;
+  --color-video-progress: #ff0033; /* watched part of a video, as on YouTube — 4.9:1 on bg-sunken */
 
   /* Chrome tab-group colors (dark variants) — dots and labels only */
   --color-group-grey: #dadce0;

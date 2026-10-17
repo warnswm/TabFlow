@@ -29,6 +29,7 @@ export const MENU_IDS = {
   separator: 'separator',
   toGroup: 'to-group',
   collapseAll: 'collapse-all',
+  openQueue: 'open-queue',
   openApp: 'open-app',
 } as const;
 
@@ -52,10 +53,9 @@ export function buildMenu(groups: readonly TabGroup[], spaces: readonly Space[])
   const items: MenuItem[] = [
     { id: MENU_IDS.stow, title: 'Убрать в TabFlow', contexts: ['page'] },
     { id: MENU_IDS.sleep, title: 'Усыпить группу', contexts: ['page'] },
-    // The queue comes at stage 6: the items are already in place, greyed out.
-    { id: MENU_IDS.queuePage, title: 'В очередь «на потом»', contexts: ['page'], enabled: false },
+    { id: MENU_IDS.queuePage, title: 'В очередь «на потом»', contexts: ['page'] },
     { id: MENU_IDS.saveLink, title: 'Сохранить ссылку в TabFlow', contexts: ['link'] },
-    { id: MENU_IDS.queueLink, title: 'В очередь «на потом»', contexts: ['link'], enabled: false },
+    { id: MENU_IDS.queueLink, title: 'В очередь «на потом»', contexts: ['link'] },
   ];
   if (recent.length > 0) {
     const contexts: MenuContext[] = ['page', 'link'];
@@ -72,6 +72,7 @@ export function buildMenu(groups: readonly TabGroup[], spaces: readonly Space[])
   }
   items.push(
     { id: MENU_IDS.collapseAll, title: 'Свернуть всё', contexts: ['action'] },
+    { id: MENU_IDS.openQueue, title: 'Открыть очередь', contexts: ['action'] },
     { id: MENU_IDS.openApp, title: 'Открыть TabFlow', contexts: ['action'] },
   );
   return items;
@@ -81,8 +82,22 @@ export interface MenuClick {
   itemId: string;
   /** The tab the menu was opened in; missing outside tabs. */
   tabId?: number;
+  /** Its window («Открыть очередь» opens the side panel there). */
+  windowId?: number;
   /** Set when the menu was opened on a link. */
   linkUrl?: string;
+  /** The page the menu was opened on. */
+  pageUrl?: string;
+}
+
+/**
+ * The page whose site a queue item of the menu is about: the link or the page. Chrome is asked
+ * for access to that site right in the click (see `queue/site-access.ts`).
+ */
+export function menuQueueUrl({ itemId, linkUrl, pageUrl }: MenuClick): string | undefined {
+  if (itemId === MENU_IDS.queueLink) return linkUrl;
+  if (itemId === MENU_IDS.queuePage) return pageUrl;
+  return undefined;
 }
 
 /** The command a menu click runs; `undefined` for items that do nothing. */
@@ -102,11 +117,15 @@ export function menuCommand({ itemId, tabId, linkUrl }: MenuClick): Command | un
       return { type: 'sleepCurrent', ...onTab };
     case MENU_IDS.saveLink:
       return linkUrl ? { type: 'saveLink', url: linkUrl } : undefined;
+    case MENU_IDS.queuePage:
+      return { type: 'queueTab', ...onTab };
+    case MENU_IDS.queueLink:
+      return linkUrl ? { type: 'queueLink', url: linkUrl } : undefined;
     case MENU_IDS.collapseAll:
       return { type: 'collapseAll' };
     case MENU_IDS.openApp:
       return { type: 'openApp' };
     default:
-      return undefined; // the queue items (stage 6)
+      return undefined; // «Открыть очередь» opens the side panel in the click itself
   }
 }

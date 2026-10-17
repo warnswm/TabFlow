@@ -77,6 +77,37 @@ describe('command messages', () => {
     );
   });
 
+  it('describes the queue', () => {
+    const video = (priority: number, created = true): CommandResponse => ({
+      ok: true,
+      result: {
+        groups: 0,
+        tabs: 0,
+        failed: 0,
+        closedGroupIds: [],
+        video: { itemId: 'v1', title: 'Dexie.js за 15 минут', priority, created },
+      },
+    });
+    expect(describeResponse('queueTab', video(4))).toBe(
+      'Видео «Dexie.js за 15 минут» в очереди — #4. Вкладка осталась открытой.',
+    );
+    expect(describeResponse('queueTab', video(2, false))).toBe(
+      'Видео «Dexie.js за 15 минут» уже в очереди — #2.',
+    );
+    expect(describeResponse('setWatched', video(0))).toBe(
+      'Видео «Dexie.js за 15 минут» просмотрено — оно в разделе «Просмотрено».',
+    );
+    expect(describeResponse('setWatched', video(5))).toBe(
+      'Видео «Dexie.js за 15 минут» снова в очереди — #5.',
+    );
+    expect(describeResponse('removeVideo', video(0))).toBe(
+      'Видео «Dexie.js за 15 минут» удалено из очереди.',
+    );
+    expect(
+      describeResponse('queueTab', { ok: false, code: 'page-not-queueable', message: '' }),
+    ).toContain('только сайты и файлы');
+  });
+
   it('never blames and always says nothing is lost on errors', () => {
     const text = describeResponse('stowGroup', { ok: false, code: 'unexpected', message: 'x' });
     expect(text).toContain('остались на месте');

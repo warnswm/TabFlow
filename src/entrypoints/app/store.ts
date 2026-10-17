@@ -1,12 +1,18 @@
 /**
- * UI state of the main page that is not in the database: the toast, the restore mode,
- * the search and filter of the shown space, the command palette.
+ * UI state of the main page (and the side panel) that is not in the database: the toast, the
+ * settings, the search and filter of the shown space, the command palette.
  */
 import { create } from 'zustand';
 import type { StateFilter } from '@/lib/app/filters';
 import type { Id } from '@/lib/db';
 import type { RestoreMode } from '@/lib/messages';
-import { DEFAULT_RESTORE_MODE, saveRestoreMode } from '@/lib/settings';
+import {
+  DEFAULT_BADGE_MODE,
+  DEFAULT_RESTORE_MODE,
+  saveBadgeMode,
+  saveRestoreMode,
+} from '@/lib/settings';
+import type { BadgeMode } from '@/lib/summary';
 
 export interface Toast {
   id: number;
@@ -18,6 +24,8 @@ export interface Toast {
 interface UiState {
   toast?: Toast;
   restoreMode: RestoreMode;
+  /** What the number on the TabFlow icon counts. */
+  badgeMode: BadgeMode;
   /** Search field of the space: filters its tiles. */
   search: string;
   stateFilter: StateFilter;
@@ -28,6 +36,7 @@ interface UiState {
   showToast(text: string, undo?: () => void): void;
   dismissToast(id: number): void;
   setRestoreMode(mode: RestoreMode, persist?: boolean): void;
+  setBadgeMode(mode: BadgeMode, persist?: boolean): void;
   setSearch(search: string): void;
   setStateFilter(filter: StateFilter): void;
   /** Search and filter back to «everything» — on another space, or to show a chosen tile. */
@@ -41,6 +50,7 @@ let nextToastId = 1;
 
 export const useUi = create<UiState>()((set) => ({
   restoreMode: DEFAULT_RESTORE_MODE,
+  badgeMode: DEFAULT_BADGE_MODE,
   search: '',
   stateFilter: 'all',
   paletteOpen: false,
@@ -51,6 +61,10 @@ export const useUi = create<UiState>()((set) => ({
   setRestoreMode: (mode, persist = true) => {
     set({ restoreMode: mode });
     if (persist) void saveRestoreMode(mode);
+  },
+  setBadgeMode: (mode, persist = true) => {
+    set({ badgeMode: mode });
+    if (persist) void saveBadgeMode(mode);
   },
   setSearch: (search) => set({ search }),
   setStateFilter: (stateFilter) => set({ stateFilter }),

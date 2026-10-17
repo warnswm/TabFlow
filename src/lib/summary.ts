@@ -1,10 +1,11 @@
 /**
- * Numbers about the groups for the popup and the badge on the TabFlow icon. Pure functions,
- * shared by the popup and the background so that both count the same way.
+ * Numbers about the groups and the queue for the popup and the badge on the TabFlow icon.
+ * Pure functions, shared by the pages and the background so that all count the same way.
  */
 import { isSaveableUrl } from './background/tab-rules';
 import { count, GROUPS } from './command-messages';
-import type { TabGroup } from './db/models';
+import type { QueueItem, TabGroup } from './db/models';
+import { queueTotal, todayPlan, totalText } from './queue/plan';
 
 export interface GroupSummary {
   /** Groups on the tab strip (active or asleep). */
@@ -61,13 +62,42 @@ export function currentTarget(
   return isSaveableUrl(tab.url) ? { kind: 'tab' } : { kind: 'none', reason: 'browser-page' };
 }
 
-/** The badge shows how many groups are stowed: what is saved but not in front of the user. */
-export function badgeText(stowed: number): string {
-  if (stowed <= 0) return '';
-  return stowed > 99 ? '99+' : String(stowed);
+/**
+ * What the number on the TabFlow icon counts (menu «Настройки» on the main page): videos for
+ * today (default), all queued videos, or stowed groups — what is saved but not in front of the user.
+ */
+export const BADGE_MODES = ['today', 'queue', 'stowed'] as const;
+export type BadgeMode = (typeof BADGE_MODES)[number];
+
+export const BADGE_MODE_LABEL: Record<BadgeMode, string> = {
+  today: 'Видео на сегодня',
+  queue: 'Все видео в очереди',
+  stowed: 'Убранные группы',
+};
+
+/** Badge text: empty for 0 (no badge), «99+» above 99. */
+export function badgeCount(n: number): string {
+  if (n <= 0) return '';
+  return n > 99 ? '99+' : String(n);
 }
 
-/** Tooltip of the TabFlow icon: «TabFlow · убрано 3 группы». */
-export function badgeTitle(stowed: number): string {
-  return stowed > 0 ? `TabFlow · убрано ${count(stowed, GROUPS)}` : 'TabFlow';
+export interface Badge {
+  text: string;
+  /** Tooltip of the icon: the day's videos and the stowed groups, whatever the number counts. */
+  title: string;
+}
+
+/** `queued` — queued videos by priority; `stowed` — number of stowed groups. */
+export function badge(mode: BadgeMode, queued: readonly QueueItem[], stowed: number): Badge {
+  const today = todayPlan(queued);
+  const all = queueTotal(queued);
+  const lines = [
+    'TabFlow',
+    queued.length === 0 ? 'Очередь пуста' : `На сегодня: ${totalText(today)}`,
+  ];
+  if (all.count > today.count) lines.push(`В очереди: ${totalText(all)}`);
+  if (stowed > 0) lines.push(`Убрано в TabFlow: ${count(stowed, GROUPS)}`);
+
+  const n = mode === 'today' ? today.count : mode === 'queue' ? all.count : stowed;
+  return { text: badgeCount(n), title: lines.join('\n') };
 }

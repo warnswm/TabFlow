@@ -37,6 +37,13 @@ export async function writeSetting(key: string, value: unknown): Promise<void> {
   await browser.storage.local.set({ [key]: value });
 }
 
+/** Calls back with the keys of settings changed on any page. */
+export function onSettingsChanged(callback: (keys: string[]) => void): void {
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local') callback(Object.keys(changes));
+  });
+}
+
 /** Registers a callback for the first install and updates of the extension. */
 export function onInstalled(callback: (reason: string) => void): void {
   browser.runtime.onInstalled.addListener(({ reason }) => callback(reason));
@@ -51,16 +58,180 @@ export async function sendRuntimeMessage<R>(message: unknown): Promise<R> {
   return (await browser.runtime.sendMessage(message)) as R;
 }
 
+/** Who sent a message to the background. */
+export type MessageSender = { kind: 'extension' } | { kind: 'content'; tabId: number };
+
 /**
- * Handles messages from extension pages. Messages from other extensions and web pages
- * never reach this listener (no `externally_connectable` in the manifest).
+ * Handles messages from extension pages and from TabFlow's content scripts. Messages from other
+ * extensions and web pages never reach this listener (no `externally_connectable` in the
+ * manifest); a content script is told apart by its sender: a web page in a tab.
  */
-export function onRuntimeMessage(handler: (message: unknown) => Promise<unknown>): void {
+export function onRuntimeMessage(
+  handler: (message: unknown, sender: MessageSender) => Promise<unknown>,
+): void {
+  const extensionOrigin = browser.runtime.getURL('');
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (sender.id !== browser.runtime.id) return false;
-    void handler(message).then(sendResponse);
+    const fromPage = sender.url?.startsWith(extensionOrigin) ?? false;
+    const tabId = sender.tab?.id;
+    if (!fromPage && tabId === undefined) return false;
+    const from: MessageSender =
+      fromPage || tabId === undefined ? { kind: 'extension' } : { kind: 'content', tabId };
+    void handler(message, from).then(sendResponse);
     return true; // keeps the channel open for the async response
   });
+}
+
+// ---------------------------------------------------------------------------
+// Video pages: the content script, access to sites
+// ---------------------------------------------------------------------------
+
+/** The background asks the content script of a tab to report its video now. */
+export const VIDEO_REPORT_REQUEST = { type: 'tabflow:report-video' } as const;
+
+/** In the content script: calls back when the background asks for a report. */
+export function onVideoReportRequest(callback: () => void): void {
+  browser.runtime.onMessage.addListener((message: unknown) => {
+    const type = (message as { type?: unknown } | null)?.type;
+    if (type === VIDEO_REPORT_REQUEST.type) callback();
+    return false; // no answer: the report goes as a message of its own
+  });
+}
+
+/** The content script of video pages (`entrypoints/video.content.ts`), built by WXT. */
+const VIDEO_SCRIPT_ID = 'tabflow-video';
+const VIDEO_SCRIPT_FILE = '/content-scripts/video.js';
+
+/**
+ * Asks Chrome for access to sites (match patterns, see `queue/site-access.ts`). Chrome shows its
+ * dialog only for sites not allowed yet. Must be called right in a click — Chrome refuses
+ * otherwise; resolves `false` when refused or declined.
+ */
+export async function requestSiteAccess(patterns: readonly string[]): Promise<boolean> {
+  if (patterns.length === 0) return true;
+  try {
+    return await browser.permissions.request({ origins: [...patterns] });
+  } catch (error) {
+    console.info('[TabFlow] Site access not requested:', error);
+    return false;
+  }
+}
+
+/** Sites the author allowed (match patterns). */
+export async function grantedSitePatterns(): Promise<string[]> {
+  return (await browser.permissions.getAll()).origins ?? [];
+}
+
+/** Calls back when site access is allowed (`added`) or taken back. */
+export function onSiteAccessChanged(callback: (added: string[]) => void): void {
+  browser.permissions.onAdded.addListener(({ origins }) => callback(origins ?? []));
+  browser.permissions.onRemoved.addListener(() => callback([]));
+}
+
+/**
+ * Runs the content script on exactly the allowed sites, in all frames (embedded players);
+ * Chrome keeps the registration across restarts.
+ */
+export async function syncVideoScript(): Promise<void> {
+  const { scripting } = browser as Partial<typeof browser>;
+  if (!scripting) return;
+  const matches = await grantedSitePatterns();
+  const registered = await scripting.getRegisteredContentScripts({ ids: [VIDEO_SCRIPT_ID] });
+  if (matches.length === 0) {
+    if (registered.length > 0) await scripting.unregisterContentScripts({ ids: [VIDEO_SCRIPT_ID] });
+    return;
+  }
+  const script = {
+    id: VIDEO_SCRIPT_ID,
+    matches,
+    js: [VIDEO_SCRIPT_FILE],
+    allFrames: true,
+    runAt: 'document_idle' as const,
+    persistAcrossSessions: true,
+  };
+  const [current] = registered;
+  if (!current) {
+    await scripting.registerContentScripts([script]);
+  } else if (
+    JSON.stringify([...(current.matches ?? [])].sort()) !== JSON.stringify([...matches].sort())
+  ) {
+    // The service worker wakes often: the registration changes only with the allowed sites.
+    await scripting.updateContentScripts([script]);
+  }
+}
+
+/** Starts the content script in the open tabs of newly allowed sites (they loaded without it). */
+export async function injectVideoScript(patterns: readonly string[]): Promise<void> {
+  const { scripting } = browser as Partial<typeof browser>;
+  if (!scripting || patterns.length === 0) return;
+  const tabs = await browser.tabs.query({ url: [...patterns] });
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      try {
+        await scripting.executeScript({
+          target: { tabId: tab.id, allFrames: true },
+          files: [VIDEO_SCRIPT_FILE],
+        });
+      } catch {
+        // A frame of a site without access, or the tab closed meanwhile.
+      }
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The side panel (Chrome 114+)
+// ---------------------------------------------------------------------------
+
+export function supportsSidePanel(): boolean {
+  return (browser as Partial<typeof browser>).sidePanel?.open !== undefined;
+}
+
+/**
+ * Opens the side panel with the queue in `windowId`. Chrome allows it only right in a click or
+ * a shortcut, so nothing may be awaited before this call.
+ */
+export async function openSidePanel(windowId: number): Promise<void> {
+  const { sidePanel } = browser as Partial<typeof browser>;
+  if (!sidePanel) return;
+  try {
+    await sidePanel.open({ windowId });
+  } catch (error) {
+    console.info('[TabFlow] Side panel not opened:', error);
+  }
+}
+
+/** The window of the page that calls it (popup, side panel, main page). */
+export async function getPageWindowId(): Promise<number | undefined> {
+  return (await browser.windows.getCurrent()).id;
+}
+
+/**
+ * For the side panel: the active tab of its window, now and after every switch, navigation or
+ * title change. Returns a function that stops watching.
+ */
+export function watchActiveTab(callback: (tab: BrowserTab | undefined) => void): () => void {
+  const placeholderPageUrl = browser.runtime.getURL(PLACEHOLDER_PAGE_PATH);
+  let windowId: number | undefined;
+  const read = async () => {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    windowId = tab?.windowId;
+    callback(tab && toBrowserTab(tab, placeholderPageUrl));
+  };
+  const onActivated = () => void read();
+  const onUpdated = (_tabId: number, change: Browser.tabs.OnUpdatedInfo, tab: Browser.tabs.Tab) => {
+    if (tab.active && tab.windowId === windowId && ('url' in change || 'title' in change)) {
+      void read();
+    }
+  };
+  browser.tabs.onActivated.addListener(onActivated);
+  browser.tabs.onUpdated.addListener(onUpdated);
+  void read();
+  return () => {
+    browser.tabs.onActivated.removeListener(onActivated);
+    browser.tabs.onUpdated.removeListener(onUpdated);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,13 +300,21 @@ export function createExtensionUi(): ExtensionUi {
 /** Clicks on the TabFlow context menu. Call synchronously at service worker start. */
 export function onMenuClick(handler: (click: MenuClick) => void): void {
   (browser as Partial<typeof browser>).contextMenus?.onClicked.addListener((info, tab) => {
-    handler({ itemId: String(info.menuItemId), tabId: tab?.id, linkUrl: info.linkUrl });
+    handler({
+      itemId: String(info.menuItemId),
+      tabId: tab?.id,
+      windowId: tab?.windowId,
+      linkUrl: info.linkUrl,
+      pageUrl: info.pageUrl,
+    });
   });
 }
 
 /** Keyboard shortcuts of TabFlow. Call synchronously at service worker start. */
-export function onHotkey(handler: (name: string, tabId?: number) => void): void {
-  browser.commands.onCommand.addListener((name, tab) => handler(name, tab?.id));
+export function onHotkey(
+  handler: (name: string, tab?: { id?: number; windowId: number; url?: string }) => void,
+): void {
+  browser.commands.onCommand.addListener((name, tab) => handler(name, tab));
 }
 
 /** The key assigned to a shortcut (empty when the author removed it). */
@@ -285,6 +464,12 @@ export interface TabsApi {
   queryGroups(filter: { windowId?: number }): Promise<BrowserGroup[]>;
   getGroup(groupId: number): Promise<BrowserGroup | undefined>;
   updateGroup(groupId: number, update: GroupUpdate): Promise<void>;
+
+  /**
+   * Asks the content script of the tab's video page to report the video now (duration, position).
+   * Does nothing on pages without it — sites TabFlow has no access to, pages opened before.
+   */
+  requestVideoReport(tabId: number): Promise<void>;
 
   /** Subscribes to browser events. Call synchronously at service worker start. */
   onEvent(listener: (event: TabsEvent) => void): void;
@@ -450,6 +635,14 @@ export function createBrowserTabsApi(): TabsApi {
 
     async updateGroup(groupId, update) {
       await requireGroups().update(groupId, update);
+    },
+
+    async requestVideoReport(tabId) {
+      try {
+        await browser.tabs.sendMessage(tabId, VIDEO_REPORT_REQUEST);
+      } catch {
+        // No content script on the page: nobody to answer.
+      }
     },
 
     onEvent(listener) {

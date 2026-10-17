@@ -2,7 +2,7 @@
  * Texts for command results, in the brand voice: fact → consequence, no address, no exclamations,
  * always say that nothing is lost. RU only for now; EN comes with i18n.
  */
-import type { CommandResponse, CommandType } from './messages';
+import type { CommandResponse, CommandType, QueuedVideo } from './messages';
 
 /** Russian plural: 1 вкладка, 2 вкладки, 5 вкладок. */
 export function plural(n: number, [one, few, many]: readonly [string, string, string]): string {
@@ -50,6 +50,10 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
         return 'Закреплённые и служебные вкладки остаются открытыми — сохраняются только сайты и файлы.';
       case 'not-in-trash':
         return 'В корзине этого уже нет — возможно, оно уже восстановлено.';
+      case 'page-not-queueable':
+        return 'В очередь попадают только сайты и файлы — служебные страницы браузера остаются как есть.';
+      case 'video-not-found':
+        return 'Видео не найдено — возможно, оно уже удалено из очереди.';
       default:
         return 'Действие не выполнено. Вкладки и ссылки остались на месте.';
     }
@@ -110,5 +114,39 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
         : `Ссылка сохранена в ${title}.${failedNote}`;
     case 'openApp':
       return 'TabFlow открыт.';
+    case 'queueTab':
+    case 'queueLink':
+    case 'openVideo':
+    case 'moveVideo':
+    case 'setWatched':
+    case 'removeVideo':
+    case 'restoreVideo':
+    case 'videoProgress':
+      return describeVideo(type, response.result.video);
+  }
+}
+
+function describeVideo(type: CommandType, video: QueuedVideo | undefined): string {
+  const title = `Видео «${video?.title || 'Без названия'}»`;
+  const place = video && video.priority > 0 ? ` — #${video.priority}` : '';
+  switch (type) {
+    case 'queueTab':
+      return video?.created === false
+        ? `${title} уже в очереди${place}.`
+        : `${title} в очереди${place}. Вкладка осталась открытой.`;
+    case 'queueLink':
+      return video?.created === false
+        ? `${title} уже в очереди${place}.`
+        : `${title} в очереди${place}.`;
+    case 'setWatched':
+      return place
+        ? `${title} снова в очереди${place}.`
+        : `${title} просмотрено — оно в разделе «Просмотрено».`;
+    case 'removeVideo':
+      return `${title} удалено из очереди.`;
+    case 'restoreVideo':
+      return `${title} снова в очереди${place}.`;
+    default:
+      return `${title}${place}.`;
   }
 }

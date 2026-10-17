@@ -15,6 +15,7 @@
     },
     "focus": "#5EEAD4",
     "status": { "danger": "#F87171", "warning": "#FBBF24" },
+    "video-progress": "#FF0033",
     "group": {
       "grey": "#DADCE0",
       "blue": "#8AB4F8",

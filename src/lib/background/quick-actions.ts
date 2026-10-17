@@ -45,7 +45,7 @@ async function dayGroup(ctx: BackgroundContext): Promise<TabGroup> {
 }
 
 /** The Chrome tab a command is about: the given one, or the active tab of the current window. */
-async function targetTab(ctx: BackgroundContext, chromeTabId?: number): Promise<BrowserTab> {
+export async function targetTab(ctx: BackgroundContext, chromeTabId?: number): Promise<BrowserTab> {
   const { api } = ctx;
   const tab =
     chromeTabId !== undefined

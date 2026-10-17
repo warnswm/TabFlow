@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupState, TabGroup } from './db/models';
-import { badgeText, badgeTitle, currentTarget, isSleepable, summarize } from './summary';
+import type { QueueItem } from './db/models';
+import { badge, badgeCount, currentTarget, isSleepable, summarize } from './summary';
 
 function group(state: GroupState, chromeGroupId?: number): TabGroup {
   return {
@@ -41,15 +42,54 @@ describe('summary', () => {
     expect(isSleepable(group('asleep', 3), shown)).toBe(false);
     expect(isSleepable(group('stowed'), shown)).toBe(false);
   });
+});
 
-  it('shows the number of stowed groups on the badge', () => {
-    expect(badgeText(0)).toBe('');
-    expect(badgeText(7)).toBe('7');
-    expect(badgeText(99)).toBe('99');
-    expect(badgeText(100)).toBe('99+');
-    expect(badgeTitle(0)).toBe('TabFlow');
-    expect(badgeTitle(3)).toBe('TabFlow · убрано 3 группы');
-    expect(badgeTitle(5)).toBe('TabFlow · убрано 5 групп');
+function video(n: number, durationSec?: number, positionSec = 0): QueueItem {
+  return {
+    id: `v${n}`,
+    url: `https://example.com/${n}`,
+    title: `Видео ${n}`,
+    site: 'example.com',
+    durationSec,
+    positionSec,
+    status: 'queued',
+    order: n,
+    createdAt: 0,
+    updatedAt: 0,
+  };
+}
+
+describe('badge', () => {
+  const queued = [video(1, 600), video(2, 1200, 300), video(3), video(4, 1800), video(5, 60)];
+
+  it('counts videos for today, all queued videos or stowed groups', () => {
+    expect(badge('today', queued, 2).text).toBe('3');
+    expect(badge('queue', queued, 2).text).toBe('5');
+    expect(badge('stowed', queued, 2).text).toBe('2');
+    expect(badge('stowed', queued, 0).text).toBe('');
+    expect(badge('today', [], 4).text).toBe('');
+  });
+
+  it('keeps the numbers short', () => {
+    expect(badgeCount(0)).toBe('');
+    expect(badgeCount(99)).toBe('99');
+    expect(badgeCount(100)).toBe('99+');
+  });
+
+  it('tells the day and the stowed groups in the tooltip, whatever the number counts', () => {
+    // Today: 10 min + 15 min left; the third video has no duration yet.
+    expect(badge('stowed', queued, 3).title.split('\n')).toEqual([
+      'TabFlow',
+      'На сегодня: 3 видео · 25 мин',
+      'В очереди: 5 видео · 56 мин',
+      'Убрано в TabFlow: 3 группы',
+    ]);
+    expect(badge('today', [], 0).title.split('\n')).toEqual(['TabFlow', 'Очередь пуста']);
+    expect(badge('today', queued.slice(0, 2), 5).title.split('\n')).toEqual([
+      'TabFlow',
+      'На сегодня: 2 видео · 25 мин',
+      'Убрано в TabFlow: 5 групп',
+    ]);
   });
 });
 

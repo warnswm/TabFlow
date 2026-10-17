@@ -3,7 +3,7 @@
  * after commands and browser events; Chrome is called only when something actually changed.
  */
 import { buildMenu } from '../menus';
-import { badgeText, badgeTitle } from '../summary';
+import { badge } from '../summary';
 import type { BackgroundContext } from './context';
 
 export function createUiRefresher(ctx: BackgroundContext): () => Promise<void> {
@@ -12,16 +12,18 @@ export function createUiRefresher(ctx: BackgroundContext): () => Promise<void> {
   let shownMenu = '';
 
   return async () => {
-    const [groups, spaces] = await Promise.all([
+    const [groups, spaces, queued, mode] = await Promise.all([
       ctx.repos.groups.listAll(),
       ctx.repos.spaces.list(),
+      ctx.repos.queue.list('queued'),
+      ctx.settings.badgeMode(),
     ]);
 
     const stowed = groups.filter((group) => group.state === 'stowed').length;
-    const badge = [badgeText(stowed), badgeTitle(stowed)] as const;
-    if (JSON.stringify(badge) !== shownBadge) {
-      await ctx.ui.setBadge(...badge);
-      shownBadge = JSON.stringify(badge);
+    const next = badge(mode, queued, stowed);
+    if (JSON.stringify(next) !== shownBadge) {
+      await ctx.ui.setBadge(next.text, next.title);
+      shownBadge = JSON.stringify(next);
     }
 
     const menu = buildMenu(groups, spaces);

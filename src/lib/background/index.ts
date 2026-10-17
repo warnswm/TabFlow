@@ -31,22 +31,50 @@ import {
   stowCurrent,
   stowSelected,
 } from './quick-actions';
+import {
+  moveVideo,
+  openVideo,
+  queueLink,
+  queueTab,
+  removeVideo,
+  restoreVideo,
+  setWatched,
+  videoProgress,
+} from './queue-actions';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 import { createUiRefresher } from './ui-refresh';
 
 export type { BackgroundContext } from './context';
 
+/**
+ * Who sent a message: an extension page (popup, side panel, main page — also the menu and the
+ * shortcuts of the background itself) or the content script of a web page in a tab.
+ */
+export type MessageOrigin = { kind: 'extension' } | { kind: 'content'; tabId: number };
+
+const FROM_EXTENSION: MessageOrigin = { kind: 'extension' };
+
 export interface Background {
   /** Reconciles the mirror with Chrome; in a new browser session also empties the old trash. */
   start(): Promise<void>;
   handleEvent(event: TabsEvent): Promise<void>;
-  handleMessage(message: unknown): Promise<CommandResponse>;
+  /**
+   * A web page may only report its video (`videoProgress`); that report is accepted from content
+   * scripts only, since the background takes the page from the sender tab.
+   */
+  handleMessage(message: unknown, origin?: MessageOrigin): Promise<CommandResponse>;
+  /** Redraws the badge and the menu (a setting changed). */
+  refreshUi(): Promise<void>;
   /** Resolves when all queued work is done (tests). */
   idle(): Promise<void>;
 }
 
-function runCommand(ctx: BackgroundContext, command: Command): Promise<CommandResult> {
+function runCommand(
+  ctx: BackgroundContext,
+  command: Command,
+  origin: MessageOrigin,
+): Promise<CommandResult> {
   switch (command.type) {
     case 'collapseAll':
       return collapseAll(ctx);
@@ -84,6 +112,23 @@ function runCommand(ctx: BackgroundContext, command: Command): Promise<CommandRe
       return saveLink(ctx, command.url, command.title, command.groupId);
     case 'openApp':
       return openApp(ctx);
+    case 'queueTab':
+      return queueTab(ctx, command.chromeTabId);
+    case 'queueLink':
+      return queueLink(ctx, command.url, command.title);
+    case 'openVideo':
+      return openVideo(ctx, command.itemId);
+    case 'moveVideo':
+      return moveVideo(ctx, command.itemId, command.index);
+    case 'setWatched':
+      return setWatched(ctx, command.itemId, command.watched);
+    case 'removeVideo':
+      return removeVideo(ctx, command.itemId);
+    case 'restoreVideo':
+      return restoreVideo(ctx, command.itemId);
+    case 'videoProgress':
+      if (origin.kind !== 'content') throw new CommandError('invalid-command', 'Not from a page');
+      return videoProgress(ctx, origin.tabId, command);
   }
 }
 
@@ -169,15 +214,17 @@ export function createBackground(ctx: BackgroundContext): Background {
       });
     },
 
-    async handleMessage(message) {
-      if (!isCommand(message)) {
+    async handleMessage(message, origin = FROM_EXTENSION) {
+      const allowed =
+        isCommand(message) && (origin.kind === 'extension' || message.type === 'videoProgress');
+      if (!allowed) {
         return { ok: false, code: 'invalid-command', message: 'Unknown command' };
       }
       try {
         const result = await run(async () => {
           commandRunning = true;
           try {
-            return await runCommand(ctx, message);
+            return await runCommand(ctx, message, origin);
           } finally {
             commandRunning = false;
           }
@@ -190,6 +237,11 @@ export function createBackground(ctx: BackgroundContext): Background {
         logError(`command ${message.type}`, error);
         return { ok: false, code: 'unexpected', message: String(error) };
       }
+    },
+
+    refreshUi() {
+      queueUiRefresh();
+      return queue.idle();
     },
 
     idle: () => queue.idle(),

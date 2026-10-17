@@ -1,6 +1,7 @@
 import type { TabFlowDB } from '../db';
 import type { Id, QueueItem, QueueStatus } from '../models';
-import { orderAfterLast, orderBetween } from '../order';
+import { videoKey } from '../../queue/video-url';
+import { ORDER_STEP, orderAfterLast, orderBetween, placeAt } from '../order';
 import {
   byOrder,
   type Clock,
@@ -19,7 +20,13 @@ export interface NewQueueItem {
   channel?: string;
   collection?: string;
   durationSec?: number;
+  favIconUrl?: string;
 }
+
+/** What the content script and the page learn about a video after it was added. */
+export type QueueItemUpdate = Partial<
+  Pick<QueueItem, 'title' | 'channel' | 'durationSec' | 'favIconUrl' | 'playerOrigins'>
+>;
 
 export interface AddResult {
   item: QueueItem;
@@ -46,7 +53,8 @@ export class QueueRepository {
 
   /**
    * Adds a video to the end of the queue (or to the top with `position: 'top'`).
-   * A video already in the queue — same YouTube id or same URL — is not added twice.
+   * A video already in the queue — same YouTube id or the same URL without `#anchor` and position
+   * (`&t=95s`) — is not added twice.
    */
   async add(input: NewQueueItem, position: 'top' | 'end' = 'end'): Promise<AddResult> {
     return this.db.transaction('rw', this.db.queue, async () => {
@@ -64,6 +72,7 @@ export class QueueRepository {
         channel: input.channel,
         collection: input.collection,
         durationSec: input.durationSec,
+        favIconUrl: input.favIconUrl,
         positionSec: 0,
         status: 'queued',
         order:
@@ -80,6 +89,35 @@ export class QueueRepository {
   async move(id: Id, order: number): Promise<void> {
     await this.requireLive(id);
     await this.db.queue.update(id, { order, updatedAt: this.clock() });
+  }
+
+  /** Puts a queued video at `index` (0 — top priority), as drag & drop does. */
+  async place(id: Id, index: number): Promise<void> {
+    await this.db.transaction('rw', this.db.queue, async () => {
+      await this.requireLive(id);
+      const now = this.clock();
+      const placement = placeAt(await this.list('queued'), id, index);
+      if ('order' in placement) {
+        await this.db.queue.update(id, { order: placement.order, updatedAt: now });
+        return;
+      }
+      await this.db.queue.update(id, { updatedAt: now });
+      await this.db.queue.bulkUpdate(
+        placement.reorder.map((key, i) => ({ key, changes: { order: (i + 1) * ORDER_STEP } })),
+      );
+    });
+  }
+
+  async update(id: Id, changes: QueueItemUpdate): Promise<void> {
+    await this.requireLive(id);
+    await this.db.queue.update(id, { ...changes, updatedAt: this.clock() });
+  }
+
+  /** The live video with the same key (see `videoKey`): another URL of it counts as the same. */
+  async findByUrl(url: string): Promise<QueueItem | undefined> {
+    const key = videoKey(url);
+    const items = await this.db.queue.toArray();
+    return items.find((item) => isLive(item) && videoKey(item.url) === key);
   }
 
   async updateProgress(id: Id, positionSec: number, durationSec?: number): Promise<void> {
@@ -128,8 +166,7 @@ export class QueueRepository {
       const live = byVideo.find(isLive);
       if (live) return live;
     }
-    const byUrl = await this.db.queue.where('url').equals(input.url).toArray();
-    return byUrl.find(isLive);
+    return this.findByUrl(input.url);
   }
 
   private async requireLive(id: Id): Promise<QueueItem> {

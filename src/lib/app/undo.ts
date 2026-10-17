@@ -45,6 +45,22 @@ export function undoCommands(
           : []),
       ];
     }
+    case 'queueTab':
+    case 'queueLink':
+      return result.video?.created
+        ? [{ type: 'removeVideo', itemId: result.video.itemId }]
+        : undefined;
+    case 'removeVideo':
+      return [{ type: 'restoreVideo', itemId: command.itemId }];
+    case 'setWatched': {
+      // «Просмотрено» is undone back to the old place; «Вернуть в очередь» needs no undo.
+      const was = result.video?.wasPriority;
+      if (!command.watched || was === undefined) return undefined;
+      return [
+        { type: 'setWatched', itemId: command.itemId, watched: false },
+        { type: 'moveVideo', itemId: command.itemId, index: was - 1 },
+      ];
+    }
     default:
       // Sleep is undone by «Разбудить»; restoring, editing and opening need no undo.
       return undefined;

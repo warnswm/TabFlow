@@ -9,14 +9,15 @@ describe('keyboard shortcuts', () => {
     expect(HOTKEYS['collapse-all'].suggested_key.default).toBe('Ctrl+Shift+S');
   });
 
-  it('runs a command for every shortcut except the popup one', () => {
+  it('runs a command for every shortcut except the popup and the side panel', () => {
     for (const name of Object.keys(HOTKEYS)) {
       const command = hotkeyCommand(name, 7);
-      if (name === '_execute_action') expect(command).toBeUndefined();
+      if (name === '_execute_action' || name === 'open-queue') expect(command).toBeUndefined();
       else expect(isCommand(command)).toBe(true);
     }
     expect(hotkeyCommand('stow-current', 7)).toEqual({ type: 'stowCurrent', chromeTabId: 7 });
     expect(hotkeyCommand('sleep-current')).toEqual({ type: 'sleepCurrent' });
+    expect(hotkeyCommand('queue-current', 7)).toEqual({ type: 'queueTab', chromeTabId: 7 });
     expect(hotkeyCommand('unknown')).toBeUndefined();
   });
 

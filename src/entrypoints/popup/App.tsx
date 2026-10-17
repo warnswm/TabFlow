@@ -1,19 +1,40 @@
-import { Archive, ArrowUpRight, Minimize2, Moon, SquareCheck, SquarePlay } from 'lucide-react';
+import {
+  Archive,
+  ArrowUpRight,
+  ListVideo,
+  Minimize2,
+  Moon,
+  SquareCheck,
+  SquarePlay,
+} from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import { type BrowserTab, getHotkey, getOpenTabsInfo, type OpenTabsInfo } from '@/lib/browser-api';
+import { isSaveableUrl } from '@/lib/background/tab-rules';
+import {
+  type BrowserTab,
+  getHotkey,
+  getOpenTabsInfo,
+  type OpenTabsInfo,
+  openSidePanel,
+  requestSiteAccess,
+  supportsSidePanel,
+} from '@/lib/browser-api';
 import { describeResponse, plural, TABS } from '@/lib/command-messages';
 import { repositories } from '@/lib/db';
 import { formatShortcut } from '@/lib/hotkeys';
 import { type Command, sendCommand } from '@/lib/messages';
+import { accessPatterns } from '@/lib/queue/site-access';
+import { videoKey } from '@/lib/queue/video-url';
 import { currentTarget, summarize } from '@/lib/summary';
 import { useLiveQuery } from '@/lib/use-live-query';
 
 const listGroups = () => repositories.groups.listAll();
+const listQueue = () => repositories.queue.list('queued');
 
 const NO_TABS: OpenTabsInfo = { count: 0, shownGroupIds: [], selected: 0 };
 
 export default function App() {
   const groups = useLiveQuery(listGroups) ?? [];
+  const queued = useLiveQuery(listQueue) ?? [];
   const [tabs, setTabs] = useState<OpenTabsInfo>(NO_TABS);
   const [shortcut, setShortcut] = useState('');
   const [status, setStatus] = useState('');
@@ -46,6 +67,24 @@ export default function App() {
   async function openApp() {
     await sendCommand({ type: 'openApp' });
     window.close();
+  }
+
+  // The current tab in the queue: its place, or -1.
+  const queueIndex = current
+    ? queued.findIndex((item) => videoKey(item.url) === videoKey(current.url))
+    : -1;
+
+  function queueCurrent() {
+    if (!current) return;
+    // Right in the click: Chrome asks once for the site (duration and position of its videos).
+    void requestSiteAccess(accessPatterns(current.url));
+    void run({ type: 'queueTab', chromeTabId: current.id });
+  }
+
+  function openQueue() {
+    if (!current) return;
+    // Nothing awaited before: Chrome opens the side panel only right in the click.
+    void openSidePanel(current.windowId).then(() => window.close());
   }
 
   const groupName = target.kind === 'group' ? target.group.title || 'Без названия' : '';
@@ -166,10 +205,26 @@ export default function App() {
           Усыпить неактивные группы
         </Action>
 
-        {/* The queue comes at stage 6 with the side panel. */}
-        <Action icon={<SquarePlay />} disabled note="позже">
-          В очередь «на потом»
+        <Action
+          icon={<SquarePlay />}
+          disabled={busy || !current || !isSaveableUrl(current.url) || queueIndex >= 0}
+          note={queueIndex >= 0 ? `в очереди · #${queueIndex + 1}` : undefined}
+          onClick={queueCurrent}
+        >
+          Видео в очередь
         </Action>
+
+        {supportsSidePanel() && (
+          <Action
+            icon={<ListVideo />}
+            disabled={!current}
+            note={String(queued.length)}
+            mono
+            onClick={openQueue}
+          >
+            Открыть очередь
+          </Action>
+        )}
       </section>
 
       <footer className="mt-auto flex items-center gap-2 border-t border-border px-4 py-3">

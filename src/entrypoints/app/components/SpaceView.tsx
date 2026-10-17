@@ -16,6 +16,7 @@ import { useUi } from '../store';
 import { BUTTON_ICON, BUTTON_PRIMARY, MENU_CONTENT, MENU_ITEM } from '../ui';
 import { EditGroupDialog, GroupLinksDialog } from './GroupDialogs';
 import { GroupTile } from './GroupTile';
+import { QueueStrip } from './QueueStrip';
 import { DeleteSpaceDialog, SpaceNameDialog } from './SpaceDialogs';
 
 /**
@@ -190,6 +191,9 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
           </SortableContext>
         )}
       </section>
+
+      {/* The queue stays out of the way while the tiles are searched or filtered. */}
+      {sortable && <QueueStrip />}
 
       <GroupLinksDialog
         view={dialogGroup}

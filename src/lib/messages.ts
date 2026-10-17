@@ -54,7 +54,44 @@ export type Command =
   /** Saves a link without opening it — into a group or the day group in «Входящие». */
   | { type: 'saveLink'; url: string; title?: string; groupId?: Id }
   /** Shows the main TabFlow page of the current window, opening it if needed. */
-  | { type: 'openApp' };
+  | { type: 'openApp' }
+  /**
+   * «В очередь «на потом»» for a Chrome tab (default: the active one). The tab stays open; a video
+   * already in the queue is not added twice.
+   */
+  | { type: 'queueTab'; chromeTabId?: number }
+  /** Adds a link to the queue without opening it. */
+  | { type: 'queueLink'; url: string; title?: string }
+  /** Shows the video's open tab, or opens it in a new tab of the current window. */
+  | { type: 'openVideo'; itemId: Id }
+  /** Puts a queued video at `index` (0 — top priority). */
+  | { type: 'moveVideo'; itemId: Id; index: number }
+  /** Marks a video watched (it leaves the queue) or puts it back at the end of the queue. */
+  | { type: 'setWatched'; itemId: Id; watched: boolean }
+  /** Removes a video from the queue (kept in the trash for 30 days). */
+  | { type: 'removeVideo'; itemId: Id }
+  /** Brings a removed video back (undo). */
+  | { type: 'restoreVideo'; itemId: Id }
+  /**
+   * From the content script of a video page: duration and position of its video. Only accepted
+   * from content scripts — the background takes the page from the sender tab.
+   */
+  | ({ type: 'videoProgress' } & VideoReport);
+
+/** What the content script of a video page reports (see `entrypoints/video.content.ts`). */
+export interface VideoReport {
+  positionSec: number;
+  durationSec?: number;
+  /** The video has played to its end. */
+  ended?: boolean;
+  /** First report of a newly loaded video: the answer may ask to continue from the saved place. */
+  loaded?: boolean;
+  /** From the top frame: the page title and the channel, when the page shows them. */
+  title?: string;
+  channel?: string;
+  /** The page has no video of its own, but frames of these origins may play it. */
+  playerOrigins?: string[];
+}
 
 /**
  * How restored tabs wait until opened (see `restoreGroup`). Both are kept: the choice moves to
@@ -78,6 +115,21 @@ export interface CommandResult {
   movedFrom?: MovedFrom;
   /** Title of the group the command stowed, put to sleep or saved into. */
   groupTitle?: string;
+  /** Queue commands: the video and its place in the queue. */
+  video?: QueuedVideo;
+  /** `videoProgress`: the page should continue the video from here (the saved position). */
+  seekToSec?: number;
+}
+
+export interface QueuedVideo {
+  itemId: Id;
+  title: string;
+  /** 1-based position in the queue; 0 when the video is not queued (watched, removed). */
+  priority: number;
+  /** `false` — the video was already in the queue. */
+  created: boolean;
+  /** `setWatched`: the place the video had in the queue before (for undo). */
+  wasPriority?: number;
 }
 
 export interface MovedFrom {
@@ -101,6 +153,8 @@ export type CommandErrorCode =
   | 'tab-not-in-group'
   | 'tab-not-saveable'
   | 'not-in-trash'
+  | 'page-not-queueable'
+  | 'video-not-found'
   | 'unexpected';
 
 export type CommandResponse =
@@ -124,6 +178,22 @@ const isMode = (value: unknown) => RESTORE_MODES.includes(value as RestoreMode);
 const isColor = (value: unknown) => GROUP_COLORS.includes(value as GroupColor);
 const isTitle = (value: unknown) => typeof value === 'string';
 const isIndex = (value: unknown) => Number.isInteger(value) && (value as number) >= 0;
+const isSeconds = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value < 1e7;
+const isFlag = (value: unknown) => isOptional(value, (v) => typeof v === 'boolean');
+const isText = (max: number) => (value: unknown) =>
+  isOptional(value, (v) => typeof v === 'string' && v.length <= max);
+const isUrl = (value: unknown) => typeof value === 'string' && value !== '';
+/** Origins of embedded players: `https://player.vimeo.com`. */
+const ORIGIN = /^https?:\/\/[^/]+$/;
+const isOrigins = (value: unknown) =>
+  isOptional(
+    value,
+    (list) =>
+      Array.isArray(list) &&
+      list.length <= 5 &&
+      list.every((origin) => typeof origin === 'string' && ORIGIN.test(origin)),
+  );
 
 /** Allowed fields per command; anything else in the message makes it invalid. */
 const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean>> = {
@@ -153,11 +223,27 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
   stowSelected: {},
   saveToGroup: { chromeTabId: isIndex, groupId: isId },
   saveLink: {
-    url: (v) => typeof v === 'string' && v !== '',
+    url: isUrl,
     title: (v) => isOptional(v, isTitle),
     groupId: (v) => isOptional(v, isId),
   },
   openApp: {},
+  queueTab: { chromeTabId: (v) => isOptional(v, isIndex) },
+  queueLink: { url: isUrl, title: (v) => isOptional(v, isTitle) },
+  openVideo: { itemId: isId },
+  moveVideo: { itemId: isId, index: isIndex },
+  setWatched: { itemId: isId, watched: (v) => typeof v === 'boolean' },
+  removeVideo: { itemId: isId },
+  restoreVideo: { itemId: isId },
+  videoProgress: {
+    positionSec: isSeconds,
+    durationSec: (v) => isOptional(v, (d) => isSeconds(d) && (d as number) > 0),
+    ended: isFlag,
+    loaded: isFlag,
+    title: isText(500),
+    channel: isText(200),
+    playerOrigins: isOrigins,
+  },
 };
 
 /** Validates a message received by the background. */

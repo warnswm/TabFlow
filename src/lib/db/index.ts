@@ -10,6 +10,7 @@ export * from './models';
 export { TabFlowDB } from './db';
 export { RecordNotFoundError, systemClock, type Clock } from './repositories/common';
 export { DEFAULT_SPACE_NAME } from './repositories/spaces';
+export type { QueueItemUpdate } from './repositories/queue';
 export { TRASH_RETENTION_MS } from './repositories/trash';
 export { orderBetween } from './order';
 

@@ -196,6 +196,35 @@ describe('undo', () => {
     ).toMatchObject({ kind: 'tab', id: 't1' });
   });
 
+  it('takes back what the queue commands did', () => {
+    const video = (created: boolean, wasPriority?: number) =>
+      result({ video: { itemId: 'v1', title: 'Видео', priority: 0, created, wasPriority } });
+    expect(undoCommands({ type: 'queueTab' }, video(true), 'placeholder')).toEqual([
+      { type: 'removeVideo', itemId: 'v1' },
+    ]);
+    expect(undoCommands({ type: 'queueTab' }, video(false), 'placeholder')).toBeUndefined();
+    expect(
+      undoCommands({ type: 'removeVideo', itemId: 'v1' }, video(false), 'placeholder'),
+    ).toEqual([{ type: 'restoreVideo', itemId: 'v1' }]);
+    expect(
+      undoCommands(
+        { type: 'setWatched', itemId: 'v1', watched: true },
+        video(false, 3),
+        'placeholder',
+      ),
+    ).toEqual([
+      { type: 'setWatched', itemId: 'v1', watched: false },
+      { type: 'moveVideo', itemId: 'v1', index: 2 },
+    ]);
+    expect(
+      undoCommands(
+        { type: 'setWatched', itemId: 'v1', watched: false },
+        video(false),
+        'placeholder',
+      ),
+    ).toBeUndefined();
+  });
+
   it('has nothing to undo for sleep, restore and edits', () => {
     expect(undoCommands({ type: 'sleepGroup', groupId: 'g1' }, result(), 'placeholder')).toBe(
       undefined,

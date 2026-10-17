@@ -11,10 +11,11 @@ import { routeHash } from '@/lib/app/route';
 import { count, GROUPS, plural, TABS } from '@/lib/command-messages';
 import { type Id, repositories } from '@/lib/db';
 import type { RestoreMode } from '@/lib/messages';
+import { BADGE_MODE_LABEL, type BadgeMode } from '@/lib/summary';
 import { moveGroupToSpace } from '../commands';
 import { type DragData, dragData, ZONE_ID } from '../dnd';
 import { useUi } from '../store';
-import { MENU_CONTENT, MENU_ITEM } from '../ui';
+import { MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR } from '../ui';
 import { SpaceNameDialog } from './SpaceDialogs';
 
 const NAV_ITEM =
@@ -312,10 +313,12 @@ export function SpaceGhost({ view }: { view: SpaceView }) {
   );
 }
 
-/** Until the settings page (stage 7): how stowed groups come back. */
+/** Until the settings page (stage 7): how stowed groups come back, what the badge counts. */
 function SettingsMenu() {
   const restoreMode = useUi((state) => state.restoreMode);
   const setRestoreMode = useUi((state) => state.setRestoreMode);
+  const badgeMode = useUi((state) => state.badgeMode);
+  const setBadgeMode = useUi((state) => state.setBadgeMode);
 
   return (
     <DropdownMenu.Root>
@@ -342,6 +345,27 @@ function SettingsMenu() {
                   <span aria-hidden className="size-2 rounded-full bg-current" />
                 </DropdownMenu.ItemIndicator>
                 {RESTORE_MODE_LABEL[mode]}
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+          <DropdownMenu.Separator className={MENU_SEPARATOR} />
+          <DropdownMenu.Label className="px-2 py-1.5 text-xs text-fg-subtle">
+            Число на значке TabFlow
+          </DropdownMenu.Label>
+          <DropdownMenu.RadioGroup
+            value={badgeMode}
+            onValueChange={(value) => setBadgeMode(value as BadgeMode)}
+          >
+            {(Object.keys(BADGE_MODE_LABEL) as BadgeMode[]).map((mode) => (
+              <DropdownMenu.RadioItem
+                key={mode}
+                value={mode}
+                className={`${MENU_ITEM} pl-7 relative`}
+              >
+                <DropdownMenu.ItemIndicator className="absolute left-2 flex">
+                  <span aria-hidden className="size-2 rounded-full bg-current" />
+                </DropdownMenu.ItemIndicator>
+                {BADGE_MODE_LABEL[mode]}
               </DropdownMenu.RadioItem>
             ))}
           </DropdownMenu.RadioGroup>

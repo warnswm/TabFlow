@@ -44,6 +44,13 @@ export class FakeTabsApi implements TabsApi {
   refusedDiscardsAfterCreate = 0;
   /** Simulates pages whose icon never arrives. */
   iconsNeverLoad = false;
+  /** Tabs whose content script was asked for a video report, in order. */
+  videoReportRequests: number[] = [];
+  /**
+   * The content script of a video page: called for every report request of a tab that is open.
+   * Unset — no page has a content script (sites without access).
+   */
+  videoPage?: (tabId: number) => void;
   private pendingRefusals = new Map<number, number>();
 
   private tabs: TabRecord[] = []; // in tab strip order
@@ -403,6 +410,11 @@ export class FakeTabsApi implements TabsApi {
   async updateGroup(groupId: number, update: GroupUpdate): Promise<void> {
     this.maybeFail('updateGroup');
     this.updateGroupSync(groupId, update);
+  }
+
+  async requestVideoReport(tabId: number): Promise<void> {
+    this.videoReportRequests.push(tabId);
+    if (this.tabs.some((tab) => tab.id === tabId)) this.videoPage?.(tabId);
   }
 
   onEvent(listener: (event: TabsEvent) => void): void {

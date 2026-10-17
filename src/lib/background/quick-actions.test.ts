@@ -316,7 +316,9 @@ describe('badge and context menu', () => {
   });
 
   it('show the stowed groups and the recent groups', async () => {
-    expect(t.ui.badge).toEqual({ text: '', title: 'TabFlow' });
+    t.settings.mode = 'stowed';
+    await t.bg.refreshUi();
+    expect(t.ui.badge).toEqual({ text: '', title: 'TabFlow\nОчередь пуста' });
 
     t.api.addGroup('Работа', 'blue', [{ url: URL('a') }]);
     t.api.addTab({ url: URL('b') });
@@ -325,7 +327,10 @@ describe('badge and context menu', () => {
 
     expectOk(await t.command({ type: 'collapseAll' }));
 
-    expect(t.ui.badge).toEqual({ text: '2', title: 'TabFlow · убрано 2 группы' });
+    expect(t.ui.badge).toEqual({
+      text: '2',
+      title: 'TabFlow\nОчередь пуста\nУбрано в TabFlow: 2 группы',
+    });
     expect(t.ui.groupItems()).toHaveLength(2);
   });
 

@@ -58,6 +58,26 @@ describe('isCommand', () => {
     expect(isCommand({ type: 'stowGroup', groupId: 'g1', mode: 'placeholder' })).toBe(false);
   });
 
+  it('accepts the queue commands and video reports, rejects malformed ones', () => {
+    expect(isCommand({ type: 'queueTab' })).toBe(true);
+    expect(isCommand({ type: 'queueLink', url: 'https://a.example/v' })).toBe(true);
+    expect(isCommand({ type: 'moveVideo', itemId: 'v1', index: 0 })).toBe(true);
+    expect(isCommand({ type: 'setWatched', itemId: 'v1', watched: true })).toBe(true);
+    expect(isCommand({ type: 'setWatched', itemId: 'v1' })).toBe(false);
+    expect(isCommand({ type: 'moveVideo', itemId: 'v1', index: -1 })).toBe(false);
+    expect(isCommand({ type: 'queueLink', url: '' })).toBe(false);
+
+    const report = { type: 'videoProgress', positionSec: 12, durationSec: 600 };
+    expect(isCommand(report)).toBe(true);
+    expect(isCommand({ ...report, loaded: true, title: 'Видео', channel: 'Канал' })).toBe(true);
+    expect(isCommand({ ...report, playerOrigins: ['https://player.vimeo.com'] })).toBe(true);
+    expect(isCommand({ ...report, positionSec: Number.NaN })).toBe(false);
+    expect(isCommand({ ...report, durationSec: 0 })).toBe(false);
+    expect(isCommand({ ...report, playerOrigins: ['javascript:alert(1)'] })).toBe(false);
+    expect(isCommand({ ...report, title: 'x'.repeat(501) })).toBe(false);
+    expect(isCommand({ ...report, tabId: 5 })).toBe(false);
+  });
+
   it('rejects anything else', () => {
     expect(isCommand(null)).toBe(false);
     expect(isCommand('collapseAll')).toBe(false);
