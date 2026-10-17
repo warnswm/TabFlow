@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { accessPatterns, missingPatterns, patternCovers, sitePattern } from './site-access';
+import {
+  accessPatterns,
+  missingPatterns,
+  patternCovers,
+  siteDomain,
+  sitePattern,
+} from './site-access';
 import {
   isNearEnd,
   mainVideoIndex,
@@ -35,16 +41,37 @@ describe('video addresses', () => {
 });
 
 describe('site access', () => {
-  it('asks for the whole site of the page and of its players', () => {
-    expect(sitePattern('https://lektorium.tv/lecture/1')).toBe('*://lektorium.tv/*');
+  it('asks for the whole site of the page and of its players, with subdomains', () => {
+    expect(sitePattern('https://lektorium.tv/lecture/1')).toBe('*://*.lektorium.tv/*');
+    expect(sitePattern('https://www.tradingview.com/chart/')).toBe('*://*.tradingview.com/*');
     expect(sitePattern('file:///C:/video.mp4')).toBeUndefined();
     expect(sitePattern('chrome://extensions')).toBeUndefined();
     expect(
-      accessPatterns('https://lektorium.tv/a', [
+      accessPatterns('https://www.lektorium.tv/a', [
         'https://player.vimeo.com',
         'https://lektorium.tv',
       ]),
-    ).toEqual(['*://lektorium.tv/*', '*://player.vimeo.com/*']);
+    ).toEqual(['*://*.lektorium.tv/*', '*://*.vimeo.com/*']);
+  });
+
+  it('finds the site of a host: country domains, shared hosting, addresses', () => {
+    expect(siteDomain('music.youtube.com')).toBe('youtube.com');
+    expect(siteDomain('news.bbc.co.uk')).toBe('bbc.co.uk');
+    expect(siteDomain('shop.site.com.ru')).toBe('site.com.ru');
+    expect(siteDomain('m.vk.ru')).toBe('vk.ru');
+    expect(siteDomain('user.github.io')).toBe('user.github.io');
+    expect(siteDomain('docs.user.github.io')).toBe('user.github.io');
+    expect(siteDomain('192.168.0.1')).toBe('192.168.0.1');
+    expect(sitePattern('http://192.168.0.1:8080/')).toBe('*://192.168.0.1/*');
+    expect(sitePattern('http://localhost:3000/')).toBe('*://localhost/*');
+  });
+
+  it('asks again when only a part of the site was allowed', () => {
+    const site = '*://*.tradingview.com/*';
+    expect(missingPatterns([site], ['*://www.tradingview.com/*'])).toEqual([site]);
+    expect(missingPatterns([site], ['*://tradingview.com/*'])).toEqual([site]);
+    expect(missingPatterns([site], [site])).toEqual([]);
+    expect(missingPatterns([site], ['<all_urls>'])).toEqual([]);
   });
 
   it('matches the patterns Chrome grants', () => {
