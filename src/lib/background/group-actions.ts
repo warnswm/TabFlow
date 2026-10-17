@@ -283,24 +283,34 @@ export async function restoreGroup(
 }
 
 /**
- * «Рядом»: the links are shown side by side on the main page, so their open tabs on the tab strip
- * are unloaded and stay in place. A tab shown in its window cannot be unloaded and stays as is;
- * the mirror puts a group to sleep when all its tabs are unloaded.
+ * «Рядом»: the links and open tabs are shown side by side on the main page, so their tabs on the
+ * tab strip are unloaded and stay in place. A tab shown in its window cannot be unloaded and stays
+ * as is; the mirror puts a group to sleep when all its tabs are unloaded.
  */
 export async function sleepLinks(
   ctx: BackgroundContext,
   tabIds: readonly Id[],
+  chromeTabIds: readonly number[] = [],
 ): Promise<CommandResult> {
   const { api, repos } = ctx;
-  let slept = 0;
+  const targets: { chromeTabId: number; linkId?: Id }[] = chromeTabIds.map((id) => ({
+    chromeTabId: id,
+  }));
   for (const id of tabIds) {
     const link = await repos.tabs.get(id);
-    const tab = link?.chromeTabId === undefined ? undefined : await api.getTab(link.chromeTabId);
-    if (!link || !tab || tab.discarded || tab.active || !tab.committed) continue;
+    if (link?.chromeTabId !== undefined)
+      targets.push({ chromeTabId: link.chromeTabId, linkId: id });
+  }
+  let slept = 0;
+  for (const { chromeTabId, linkId } of targets) {
+    const tab = await api.getTab(chromeTabId);
+    if (!tab || tab.discarded || tab.active || !tab.committed) continue;
     try {
       const discarded = await api.discardTab(tab.id);
       if (!discarded?.discarded) continue; // Chrome refused: the tab stays loaded
-      if (discarded.id !== tab.id) await repos.tabs.update(link.id, { chromeTabId: discarded.id });
+      if (linkId !== undefined && discarded.id !== tab.id) {
+        await repos.tabs.update(linkId, { chromeTabId: discarded.id });
+      }
       slept++;
     } catch {
       // Stays loaded.

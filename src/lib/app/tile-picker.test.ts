@@ -5,10 +5,13 @@ import { buildSearchIndex } from './search';
 import {
   defaultLayoutName,
   layoutPanes,
-  linkPanes,
-  pickedLinks,
+  openPages,
+  type PageTab,
+  pageKey,
+  pickedItems,
   pickerGroups,
   togglePick,
+  toLayoutLinks,
 } from './tile-picker';
 
 const T0 = new Date(2026, 9, 17, 15, 30).getTime();
@@ -89,13 +92,6 @@ describe('togglePick', () => {
   });
 });
 
-describe('pickedLinks', () => {
-  it('returns the picked links in the picked order, skipping deleted ones', () => {
-    const { overview } = setup();
-    expect(pickedLinks(overview, ['c', 'gone', 'a']).map((t) => t.id)).toEqual(['c', 'a']);
-  });
-});
-
 describe('defaultLayoutName', () => {
   it('names a layout after its first two links and counts the rest', () => {
     const links = [
@@ -109,24 +105,73 @@ describe('defaultLayoutName', () => {
   });
 });
 
-describe('viewer panes', () => {
-  it('shows the links of «Рядом» in order, without deleted ones', () => {
-    const { overview } = setup();
-    expect(linkPanes(overview, ['c', 'gone', 'a']).map((pane) => pane.url)).toEqual([
-      'https://c.example/',
-      'https://a.example/',
-    ]);
+const page = (id: number, url: string, title: string, extra: Partial<PageTab> = {}): PageTab => ({
+  id,
+  url,
+  title,
+  groupId: -1,
+  placeholder: false,
+  ...extra,
+});
+
+describe('openPages', () => {
+  const tabs = [
+    page(1, 'https://mdn.example/docs', 'MDN: Array'),
+    page(2, 'https://grouped.example/', 'В группе', { groupId: 7 }),
+    page(3, 'chrome-extension://tabflow/app.html', 'TabFlow'),
+    page(4, 'https://mdn.example/docs', 'MDN: Array (копия)'),
+    page(5, 'https://lazy.example/', 'Заглушка', { placeholder: true }),
+    page(6, 'http://ёлка.example/', 'Ёлка'),
+  ];
+
+  it('lists open sites outside native groups, one tab per address', () => {
+    expect(openPages(tabs, '').map((tab) => tab.id)).toEqual([1, 6]);
   });
 
-  it('shows a saved layout with live links and the saved address of a link that is gone', () => {
+  it('matches every word of the query in the title or the address', () => {
+    expect(openPages(tabs, 'mdn array').map((tab) => tab.id)).toEqual([1]);
+    expect(openPages(tabs, 'елка').map((tab) => tab.id)).toEqual([6]);
+    expect(openPages(tabs, 'mdn елка')).toEqual([]);
+  });
+});
+
+describe('pickedItems', () => {
+  it('keeps the picked order: links, and open tabs by their address', () => {
+    const { overview } = setup();
+    const pages = [page(9, 'https://open.example/', 'Открытая')];
+    const items = pickedItems(overview, pages, [
+      'c',
+      pageKey('https://open.example/'),
+      'gone',
+      pageKey('https://closed.example/path'),
+    ]);
+    expect(
+      items.map(({ link, url, title, chromeTabId }) => [link?.id, url, title, chromeTabId]),
+    ).toEqual([
+      ['c', 'https://c.example/', 'Почта', undefined],
+      [undefined, 'https://open.example/', 'Открытая', 9],
+      [undefined, 'https://closed.example/path', 'closed.example', undefined],
+    ]);
+    expect(toLayoutLinks(items)).toEqual([
+      { tabId: 'c', url: 'https://c.example/', title: 'Почта' },
+      { url: 'https://open.example/', title: 'Открытая' },
+      { url: 'https://closed.example/path', title: 'closed.example' },
+    ]);
+  });
+});
+
+describe('layoutPanes', () => {
+  it('shows live links and the saved address of a link that is gone or was an open tab', () => {
     const { overview } = setup();
     const panes = layoutPanes(overview, [
       { tabId: 'a', url: 'https://old.example/', title: 'Старое' },
       { tabId: 'gone', url: 'https://gone.example/', title: 'Удалена' },
+      { url: 'https://open.example/', title: 'Открытая' },
     ]);
     expect(panes.map(({ link, url, title }) => [link?.id, url, title])).toEqual([
       ['a', 'https://a.example/', 'Лекция по React'],
       [undefined, 'https://gone.example/', 'Удалена'],
+      [undefined, 'https://open.example/', 'Открытая'],
     ]);
   });
 });

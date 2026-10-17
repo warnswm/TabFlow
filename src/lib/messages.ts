@@ -74,10 +74,11 @@ export type Command =
   /** Brings a removed video back (undo). */
   | { type: 'restoreVideo'; itemId: Id }
   /**
-   * «Рядом»: the links are shown side by side on the main page, so their open tabs on the tab
-   * strip are unloaded (they stay in place). The tab shown in a window is left as is.
+   * «Рядом»: links (`tabIds`) and open tabs outside TabFlow (`chromeTabIds`) are shown side by
+   * side on the main page, so their tabs on the tab strip are unloaded (they stay in place).
+   * The tab shown in a window is left as is.
    */
-  | { type: 'sleepLinks'; tabIds: Id[] }
+  | { type: 'sleepLinks'; tabIds: Id[]; chromeTabIds?: number[] }
   /**
    * From the content script of a video page: duration and position of its video. Only accepted
    * from content scripts — the background takes the page from the sender tab.
@@ -242,7 +243,9 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
   removeVideo: { itemId: isId },
   restoreVideo: { itemId: isId },
   sleepLinks: {
-    tabIds: (v) => Array.isArray(v) && v.length > 0 && v.length <= MAX_TILES && v.every(isId),
+    tabIds: (v) => Array.isArray(v) && v.length <= MAX_TILES && v.every(isId),
+    chromeTabIds: (v) =>
+      isOptional(v, (ids) => Array.isArray(ids) && ids.length <= MAX_TILES && ids.every(isIndex)),
   },
   videoProgress: {
     positionSec: isSeconds,

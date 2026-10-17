@@ -246,12 +246,15 @@ describe('route', () => {
   });
 
   it('keeps the links of «Рядом» and a saved layout in the hash', () => {
-    const side: Route = { view: 'side', tabIds: ['a', 'b/c'] };
+    const side: Route = { view: 'side', items: ['a', 'b/c'] };
     expect(routeHash(side)).toBe('#/side/a,b%2Fc');
     expect(parseRoute(routeHash(side))).toEqual(side);
+    // An open tab is kept by its address: commas and slashes are encoded.
+    const page: Route = { view: 'side', items: ['a', 'u:https://x.example/a,b?c=1#d'] };
+    expect(parseRoute(routeHash(page))).toEqual(page);
     expect(parseRoute('#/side/a,a,b,c,d,e')).toEqual({
       view: 'side',
-      tabIds: ['a', 'b', 'c', 'd'],
+      items: ['a', 'b', 'c', 'd'],
     });
     expect(parseRoute('#/side/')).toEqual({ view: 'space' });
     expect(parseRoute(routeHash({ view: 'layout', layoutId: 'x' }))).toEqual({

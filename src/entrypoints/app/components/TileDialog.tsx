@@ -6,12 +6,14 @@ import type { Route } from '@/lib/app/route';
 import type { SearchIndex } from '@/lib/app/search';
 import {
   defaultLayoutName,
-  pickedLinks,
+  openPages,
+  pageKey,
+  pickedItems,
   pickerGroups,
   togglePick,
   toLayoutLinks,
 } from '@/lib/app/tile-picker';
-import { faviconUrl, requestSiteAccess } from '@/lib/browser-api';
+import { type BrowserTab, faviconUrl, listOpenTabs, requestSiteAccess } from '@/lib/browser-api';
 import { count, plural } from '@/lib/command-messages';
 import { type Id, repositories, type TileLayout } from '@/lib/db';
 import { sitePattern } from '@/lib/queue/site-access';
@@ -34,7 +36,8 @@ import {
 } from '../ui';
 
 /**
- * «Рядом»: 2–4 links of any groups, shown side by side on the main page (`SideBySideView`).
+ * «Рядом»: 2–4 links of any groups or open tabs outside TabFlow, shown side by side on the main
+ * page (`SideBySideView`).
  * Saved layouts open in one click; they are database records the page writes itself.
  */
 
@@ -58,10 +61,13 @@ function showSideBySide(route: Route, urls: readonly string[], prepare?: () => P
   })();
 }
 
-/** Open tabs of the shown links are unloaded: they stay on the tab strip. */
-function sleepShownLinks(tabIds: readonly Id[]) {
-  if (tabIds.length > 0) void runCommand({ type: 'sleepLinks', tabIds: [...tabIds] });
+/** Tabs of the shown links and the shown open tabs are unloaded: they stay on the tab strip. */
+function sleepShown(tabIds: readonly Id[], chromeTabIds: readonly number[] = []) {
+  if (tabIds.length + chromeTabIds.length === 0) return;
+  void runCommand({ type: 'sleepLinks', tabIds: [...tabIds], chromeTabIds: [...chromeTabIds] });
 }
+
+const SECTION_TITLE = 'text-xs font-semibold tracking-wide text-fg-subtle uppercase';
 
 /** Which pane gets which number: 2 — columns, 3 — one left and two right, 4 — 2×2. */
 const LAYOUT_HINT: Record<number, string> = {
@@ -92,8 +98,8 @@ export function TileDialog({ overview, index }: TileDialogProps) {
             </Dialog.Close>
           </div>
           <Dialog.Description className="-mt-2 text-sm text-fg-muted">
-            От 2 до 4 ссылок — сайты открываются рядом прямо на главной. Ссылки остаются в своих
-            группах, их открытые вкладки засыпают и остаются на местах.
+            От 2 до 4 открытых вкладок или ссылок — сайты открываются рядом прямо на главной. Ссылки
+            остаются в своих группах, вкладки засыпают и остаются на местах.
           </Dialog.Description>
           {target && (
             <TilePicker
@@ -116,31 +122,53 @@ interface TilePickerProps extends TileDialogProps {
 
 function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) {
   const layouts = useLiveQuery(loadLayouts) ?? [];
+  const [pages, setPages] = useState<BrowserTab[]>([]);
   const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<Id[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const [save, setSave] = useState(false);
   const [name, setName] = useState<string>();
   const groups = pickerGroups(overview, index, query);
-  const links = pickedLinks(overview, picked);
+  const shownPages = openPages(pages, query);
+  const items = pickedItems(overview, pages, picked);
   const full = picked.length >= MAX_TILES;
+
+  // Open tabs outside TabFlow, as they are when the dialog opens.
+  useEffect(() => {
+    listOpenTabs()
+      .then(setPages)
+      .catch(() => setPages([]));
+  }, []);
 
   // From the menu of a tile: the list starts at that group.
   const startRef = useRef<HTMLDivElement>(null);
   useEffect(() => startRef.current?.scrollIntoView({ block: 'start' }), []);
 
+  function row(key: string, url: string, title: string) {
+    const at = picked.indexOf(key);
+    return (
+      <PickRow
+        key={key}
+        url={url}
+        title={title}
+        at={at}
+        disabled={at < 0 && full}
+        onToggle={() => setPicked((current) => togglePick(current, key))}
+      />
+    );
+  }
+
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (links.length < MIN_TILES) return;
-    const tabIds = links.map((link) => link.id);
+    if (items.length < MIN_TILES) return;
     showSideBySide(
-      { view: 'side', tabIds },
-      links.map((link) => link.url),
+      { view: 'side', items: items.map((item) => item.key) },
+      items.map((item) => item.url),
       async () => {
         if (save) {
           try {
             await repositories.layouts.create(
-              name?.trim() || defaultLayoutName(links),
-              toLayoutLinks(links),
+              name?.trim() || defaultLayoutName(items),
+              toLayoutLinks(items),
             );
           } catch {
             useUi.getState().showToast('Раскладка не сохранена. Ссылки остались в своих группах.');
@@ -148,7 +176,12 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
           }
         }
         onDone();
-        sleepShownLinks(tabIds);
+        sleepShown(
+          items.flatMap((item) => (item.link ? [item.link.id] : [])),
+          items.flatMap((item) =>
+            !item.link && item.chromeTabId !== undefined ? [item.chromeTabId] : [],
+          ),
+        );
         return true;
       },
     );
@@ -158,9 +191,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
     <form onSubmit={onSubmit} className="flex min-h-0 flex-col gap-4">
       {layouts.length > 0 && query === '' && (
         <section aria-label="Сохранённые раскладки" className="flex flex-col gap-1">
-          <h2 className="text-xs font-semibold tracking-wide text-fg-subtle uppercase">
-            Раскладки
-          </h2>
+          <h2 className={SECTION_TITLE}>Раскладки</h2>
           <ul className="flex flex-col">
             {layouts.map((layout) => (
               <LayoutRow key={layout.id} layout={layout} onOpen={onDone} />
@@ -169,9 +200,9 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
         </section>
       )}
 
-      <section aria-label="Ссылки" className="flex min-h-0 flex-col gap-2">
+      <section aria-label="Ссылки и вкладки" className="flex min-h-0 flex-col gap-2">
         <label className="relative block">
-          <span className="sr-only">Найти ссылку</span>
+          <span className="sr-only">Найти вкладку или ссылку</span>
           <Search
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
@@ -180,68 +211,39 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Найти ссылку или группу"
+            placeholder="Найти вкладку, ссылку или группу"
             className={`${INPUT} pl-9`}
           />
         </label>
         <div className="max-h-[42vh] min-h-24 overflow-y-auto pr-1">
-          {groups.length === 0 ? (
+          {groups.length === 0 && shownPages.length === 0 && (
             <p className="py-6 text-center text-sm text-fg-muted">
-              {query
-                ? 'Ничего не найдено.'
-                : 'Ссылок пока нет — сначала сохраните вкладки в группы.'}
+              {query ? 'Ничего не найдено.' : 'Открытых вкладок и сохранённых ссылок пока нет.'}
             </p>
-          ) : (
-            groups.map(({ group, space, tabs }) => (
-              <div
-                key={group.id}
-                ref={group.id === startGroupId ? startRef : undefined}
-                className="flex flex-col pb-2"
-              >
-                <div className="flex items-center gap-2 px-1 py-1.5 text-sm">
-                  <span
-                    aria-hidden
-                    className={`size-2 shrink-0 rounded-full ${GROUP_DOT[group.color]}`}
-                  />
-                  <span className="truncate font-semibold">{group.title || UNTITLED}</span>
-                  <span className="truncate text-fg-subtle">· {space.name}</span>
-                </div>
-                {tabs.map((tab) => {
-                  const at = picked.indexOf(tab.id);
-                  const on = at >= 0;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={on}
-                      disabled={!on && full}
-                      onClick={() => setPicked((current) => togglePick(current, tab.id))}
-                      className={`flex h-9 items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors duration-(--duration-fast) disabled:opacity-50 ${
-                        on ? 'bg-accent-soft text-fg' : 'hover:bg-surface-raised'
-                      }`}
-                    >
-                      <span
-                        aria-hidden
-                        className={`flex size-5 shrink-0 items-center justify-center rounded-sm border font-mono text-xs ${
-                          on
-                            ? 'border-accent bg-accent font-semibold text-on-accent'
-                            : 'border-border-control'
-                        }`}
-                      >
-                        {on ? at + 1 : ''}
-                      </span>
-                      <img alt="" src={faviconUrl(tab.url, 16)} className="size-4 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{tab.title || tab.url}</span>
-                      <span className="shrink-0 text-xs text-fg-subtle">
-                        {displayHost(tab.url)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))
           )}
+          {shownPages.length > 0 && (
+            <div className="flex flex-col pb-2">
+              <h3 className={`${SECTION_TITLE} px-1 py-1.5`}>Открытые вкладки · вне групп</h3>
+              {shownPages.map((tab) => row(pageKey(tab.url), tab.url, tab.title))}
+            </div>
+          )}
+          {groups.map(({ group, space, tabs }) => (
+            <div
+              key={group.id}
+              ref={group.id === startGroupId ? startRef : undefined}
+              className="flex flex-col pb-2"
+            >
+              <div className="flex items-center gap-2 px-1 py-1.5 text-sm">
+                <span
+                  aria-hidden
+                  className={`size-2 shrink-0 rounded-full ${GROUP_DOT[group.color]}`}
+                />
+                <span className="truncate font-semibold">{group.title || UNTITLED}</span>
+                <span className="truncate text-fg-subtle">· {space.name}</span>
+              </div>
+              {tabs.map((tab) => row(tab.id, tab.url, tab.title))}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -249,7 +251,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
         <LayoutScheme count={Math.max(picked.length, MIN_TILES)} active={picked.length} />
         <p className="min-w-40 flex-1 text-sm text-fg-muted" aria-live="polite">
           {picked.length < MIN_TILES
-            ? `Выбрано: ${picked.length} из ${MAX_TILES}. Нужно хотя бы две ссылки.`
+            ? `Выбрано: ${picked.length} из ${MAX_TILES}. Нужно хотя бы две.`
             : `${count(picked.length, PANES)}. ${LAYOUT_HINT[picked.length] ?? ''}`}
         </p>
       </div>
@@ -267,7 +269,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
         {save && (
           <input
             aria-label="Название раскладки"
-            value={name ?? defaultLayoutName(links)}
+            value={name ?? defaultLayoutName(items)}
             onChange={(event) => setName(event.target.value)}
             placeholder="Название"
             maxLength={80}
@@ -278,7 +280,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
           <Dialog.Close type="button" className={BUTTON_SECONDARY}>
             Отмена
           </Dialog.Close>
-          <button type="submit" disabled={links.length < MIN_TILES} className={BUTTON_PRIMARY}>
+          <button type="submit" disabled={items.length < MIN_TILES} className={BUTTON_PRIMARY}>
             <Columns2 aria-hidden className="size-4" />
             Открыть рядом
           </button>
@@ -354,7 +356,9 @@ function LayoutRow({ layout, onOpen }: { layout: TileLayout; onOpen: () => void 
             layout.links.map((link) => link.url),
             async () => {
               onOpen();
-              sleepShownLinks(layout.links.map((link) => link.tabId));
+              sleepShown(
+                layout.links.flatMap((link) => (link.tabId === undefined ? [] : [link.tabId])),
+              );
               return true;
             },
           );
@@ -417,5 +421,43 @@ function LayoutScheme({ count: cells, active }: { count: number; active: number 
         </span>
       ))}
     </span>
+  );
+}
+
+interface PickRowProps {
+  url: string;
+  title: string;
+  /** Place in the picked order, -1 — not picked. */
+  at: number;
+  disabled: boolean;
+  onToggle: () => void;
+}
+
+/** A link or an open tab to pick: the number shows its pane. */
+function PickRow({ url, title, at, disabled, onToggle }: PickRowProps) {
+  const on = at >= 0;
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={onToggle}
+      className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors duration-(--duration-fast) disabled:opacity-50 ${
+        on ? 'bg-accent-soft text-fg' : 'hover:bg-surface-raised'
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`flex size-5 shrink-0 items-center justify-center rounded-sm border font-mono text-xs ${
+          on ? 'border-accent bg-accent font-semibold text-on-accent' : 'border-border-control'
+        }`}
+      >
+        {on ? at + 1 : ''}
+      </span>
+      <img alt="" src={faviconUrl(url, 16)} className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{title || url}</span>
+      <span className="shrink-0 text-xs text-fg-subtle">{displayHost(url)}</span>
+    </button>
   );
 }

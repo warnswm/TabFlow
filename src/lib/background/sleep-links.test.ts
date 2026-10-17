@@ -79,9 +79,24 @@ describe('sleepLinks («Рядом»)', () => {
     });
   });
 
-  it('takes one to four links', () => {
-    expect(isCommand({ type: 'sleepLinks', tabIds: [] })).toBe(false);
+  it('unloads open tabs outside TabFlow too; nothing is saved for them', async () => {
+    const shown = t.api.addTab({ url: 'https://shown.example/', active: true });
+    const page = t.api.addTab({ url: 'https://page.example/', title: 'page' });
+    await t.settle();
+
+    const result = expectOk(
+      await t.command({ type: 'sleepLinks', tabIds: [], chromeTabIds: [page.id, shown.id] }),
+    );
+
+    expect(result.tabs).toBe(1);
+    expect(single(t.api.allTabs().filter((tab) => tab.title === 'page')).discarded).toBe(true);
+    expect(await t.groups.listAll()).toEqual([]);
+  });
+
+  it('takes up to four links and four open tabs', () => {
     expect(isCommand({ type: 'sleepLinks', tabIds: ['a', 'b', 'c', 'd', 'e'] })).toBe(false);
     expect(isCommand({ type: 'sleepLinks', tabIds: ['a'] })).toBe(true);
+    expect(isCommand({ type: 'sleepLinks', tabIds: [], chromeTabIds: [1, 2] })).toBe(true);
+    expect(isCommand({ type: 'sleepLinks', tabIds: [], chromeTabIds: [-1] })).toBe(false);
   });
 });

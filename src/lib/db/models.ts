@@ -107,8 +107,8 @@ export interface QueueItem extends BaseRecord {
 
 /** A link of a saved layout. The copy of the address opens the page when the link is gone. */
 export interface LayoutLink {
-  /** The `SavedTab` it was made from. */
-  tabId: Id;
+  /** The `SavedTab` it was made from; missing for an open tab that was outside TabFlow. */
+  tabId?: Id;
   url: string;
   title: string;
 }

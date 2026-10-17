@@ -134,7 +134,7 @@ function runCommand(
     case 'restoreVideo':
       return restoreVideo(ctx, command.itemId);
     case 'sleepLinks':
-      return sleepLinks(ctx, command.tabIds);
+      return sleepLinks(ctx, command.tabIds, command.chromeTabIds);
     case 'videoProgress':
       if (origin.kind !== 'content') throw new CommandError('invalid-command', 'Not from a page');
       return videoProgress(ctx, origin.tabId, command);

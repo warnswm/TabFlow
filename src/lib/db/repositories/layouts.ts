@@ -30,7 +30,9 @@ export class LayoutRepository {
         id: newId(),
         name: name.trim(),
         order: orderAfterLast(await this.list()),
-        links: links.map(({ tabId, url, title }) => ({ tabId, url, title })),
+        links: links.map(({ tabId, url, title }) =>
+          tabId === undefined ? { url, title } : { tabId, url, title },
+        ),
         createdAt: now,
         updatedAt: now,
       };

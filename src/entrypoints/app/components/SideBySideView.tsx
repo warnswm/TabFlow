@@ -1,12 +1,15 @@
 import { ArrowLeft, Columns2, ExternalLink, RotateCw, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { displayHost, type Overview } from '@/lib/app/overview';
-import { layoutPanes, linkPanes, type ViewerPane } from '@/lib/app/tile-picker';
+import type { Route } from '@/lib/app/route';
+import { layoutPanes, type PickedItem, pickedItems } from '@/lib/app/tile-picker';
 import {
   allowFramesInThisTab,
+  type BrowserTab,
   faviconUrl,
   grantedSitePatterns,
-  openPageInNewTab,
+  listOpenTabs,
+  showOrOpenPage,
   requestSiteAccess,
 } from '@/lib/browser-api';
 import { repositories, type TileLayout } from '@/lib/db';
@@ -18,12 +21,13 @@ import { useUi } from '../store';
 import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, UNTITLED } from '../ui';
 
 /**
- * «Рядом»: the main page turns into a viewer of 2–4 sites side by side, each in a frame of its
- * own (`tiling/layout.ts`). Frames are not tabs: a site loads anew, and the tabs and groups of
- * Chrome stay as they are. Sites that refuse to show in a frame open in a tab instead.
+ * «Рядом»: the main page turns into a viewer of 2–4 sites (links or open tabs) side by side,
+ * each in a frame of its own (`tiling/layout.ts`). Frames are not tabs: a site loads anew, and
+ * the tabs and groups of Chrome stay as they are. Sites that refuse to show in a frame open in a
+ * tab instead.
  */
 
-export type ViewerRoute = { view: 'side'; tabIds: string[] } | { view: 'layout'; layoutId: string };
+export type ViewerRoute = Extract<Route, { view: 'side' | 'layout' }>;
 
 const SITE = /^https?:\/\//;
 
@@ -53,13 +57,20 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
   const framesReady = useFramesAllowed();
   const [granted, setGranted] = useState<string[]>();
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  // Titles of open tabs outside TabFlow, shown by their address.
+  const [pages, setPages] = useState<BrowserTab[]>([]);
+  useEffect(() => {
+    listOpenTabs()
+      .then(setPages)
+      .catch(() => setPages([]));
+  }, []);
 
   const readGranted = () => void grantedSitePatterns().then(setGranted);
   useEffect(() => readGranted(), []);
 
   const panes =
     route.view === 'side'
-      ? linkPanes(overview, route.tabIds)
+      ? pickedItems(overview, pages, route.items)
       : layout
         ? layoutPanes(overview, layout.links)
         : [];
@@ -129,7 +140,7 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
 }
 
 interface PaneProps {
-  pane: ViewerPane;
+  pane: PickedItem;
   framesReady: boolean;
   hasAccess: boolean;
   onAccess: () => void;
@@ -145,7 +156,7 @@ function Pane({ pane, framesReady, hasAccess, onAccess, onClose }: PaneProps) {
 
   function openInTab() {
     if (pane.link) void runCommand({ type: 'openTab', tabId: pane.link.id }, { quiet: true });
-    else void openPageInNewTab(pane.url);
+    else void showOrOpenPage(pane.url);
   }
 
   function allowAccess() {

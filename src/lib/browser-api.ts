@@ -227,9 +227,26 @@ export async function allowFramesInThisTab(): Promise<boolean> {
   return true;
 }
 
-/** Opens a page in a new tab of the current window (a link of a layout that is gone). */
-export async function openPageInNewTab(url: string): Promise<void> {
-  await browser.tabs.create({ url });
+/** Open tabs of all windows, in window and strip order (for «Рядом»: tabs outside TabFlow). */
+export async function listOpenTabs(): Promise<BrowserTab[]> {
+  const placeholderPageUrl = browser.runtime.getURL(PLACEHOLDER_PAGE_PATH);
+  return compact(
+    (await browser.tabs.query({})).map((tab) => toBrowserTab(tab, placeholderPageUrl)),
+  );
+}
+
+/**
+ * Shows an open tab with this address (in any window), or opens the page in a new tab — for
+ * «Рядом» items that are not saved links: open tabs outside TabFlow, links of a layout that are gone.
+ */
+export async function showOrOpenPage(url: string): Promise<void> {
+  const open = (await browser.tabs.query({})).find((tab) => tab.url === url);
+  if (open?.id === undefined) {
+    await browser.tabs.create({ url });
+    return;
+  }
+  await browser.tabs.update(open.id, { active: true });
+  await browser.windows.update(open.windowId, { focused: true });
 }
 
 // ---------------------------------------------------------------------------
