@@ -22,8 +22,18 @@ import {
   needsIconRefresh,
   reopenMissingLinks,
 } from './placeholder-icons';
+import {
+  openApp,
+  saveLink,
+  saveToGroup,
+  sleepCurrent,
+  sleepInactive,
+  stowCurrent,
+  stowSelected,
+} from './quick-actions';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
+import { createUiRefresher } from './ui-refresh';
 
 export type { BackgroundContext } from './context';
 
@@ -60,6 +70,20 @@ function runCommand(ctx: BackgroundContext, command: Command): Promise<CommandRe
       return moveTab(ctx, command.tabId, command.groupId, command.index);
     case 'openTab':
       return openTab(ctx, command.tabId);
+    case 'stowCurrent':
+      return stowCurrent(ctx, command.chromeTabId);
+    case 'sleepCurrent':
+      return sleepCurrent(ctx, command.chromeTabId);
+    case 'sleepInactive':
+      return sleepInactive(ctx);
+    case 'stowSelected':
+      return stowSelected(ctx);
+    case 'saveToGroup':
+      return saveToGroup(ctx, command.chromeTabId, command.groupId);
+    case 'saveLink':
+      return saveLink(ctx, command.url, command.title, command.groupId);
+    case 'openApp':
+      return openApp(ctx);
   }
 }
 
@@ -76,9 +100,31 @@ export function createBackground(ctx: BackgroundContext): Background {
   const ownTabs = new Set<number>();
   let commandRunning = false;
 
+  // The badge and the menu follow the database: one refresh after a burst of queued work.
+  const refreshUi = createUiRefresher(ctx);
+  let uiRefreshQueued = false;
+  function queueUiRefresh(): void {
+    if (uiRefreshQueued) return;
+    uiRefreshQueued = true;
+    void queue.run(async () => {
+      uiRefreshQueued = false;
+      try {
+        await refreshUi();
+      } catch (error) {
+        logError('badge and menu refresh', error);
+      }
+    });
+  }
+  /** Queues work and the refresh of the badge and the menu after it. */
+  function run<T>(work: () => Promise<T>): Promise<T> {
+    const done = queue.run(work);
+    queueUiRefresh();
+    return done;
+  }
+
   return {
     start() {
-      return queue.run(async () => {
+      return run(async () => {
         try {
           const idsAreStale = await ctx.api.isFirstRunInSession();
           // The extension was reloaded or updated: Chrome closed its placeholders meanwhile.
@@ -107,7 +153,7 @@ export function createBackground(ctx: BackgroundContext): Background {
     handleEvent(event) {
       const watchIcons = event.type === 'tabCreated' && ctx.clock() < refreshIconsUntil;
       if (watchIcons && commandRunning) ownTabs.add(event.tabId);
-      return queue.run(async () => {
+      return run(async () => {
         try {
           await handleTabsEvent(ctx, event);
           if (watchIcons && !ownTabs.delete(event.tabId)) {
@@ -128,7 +174,7 @@ export function createBackground(ctx: BackgroundContext): Background {
         return { ok: false, code: 'invalid-command', message: 'Unknown command' };
       }
       try {
-        const result = await queue.run(async () => {
+        const result = await run(async () => {
           commandRunning = true;
           try {
             return await runCommand(ctx, message);

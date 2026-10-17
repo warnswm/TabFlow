@@ -44,6 +44,10 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
         return '«Входящие» не удаляются — сюда попадают свёрнутые вкладки.';
       case 'tab-not-found':
         return 'Ссылка не найдена — возможно, она уже удалена.';
+      case 'tab-not-in-group':
+        return 'Вкладка не в группе — усыпить можно только группу.';
+      case 'tab-not-saveable':
+        return 'Закреплённые и служебные вкладки остаются открытыми — сохраняются только сайты и файлы.';
       case 'not-in-trash':
         return 'В корзине этого уже нет — возможно, оно уже восстановлено.';
       default:
@@ -51,8 +55,8 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
     }
   }
 
-  const { groups, tabs, failed } = response.result;
-  const title = `«${name || 'Без названия'}»`;
+  const { groups, tabs, failed, groupTitle } = response.result;
+  const title = `«${name || groupTitle || 'Без названия'}»`;
   const failedNote = failed > 0 ? ` Не удалось: ${count(failed, TABS)} — ссылки сохранены.` : '';
 
   switch (type) {
@@ -86,5 +90,25 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
       return groups > 0
         ? `Ссылка перенесена в ${title}. Пустая группа удалена — её можно вернуть из корзины в течение 30 дней.${failedNote}`
         : `Ссылка перенесена в ${title}.${failedNote}`;
+    case 'stowCurrent':
+      return groups > 0
+        ? `${title} убрана в TabFlow. ${count(tabs, TABS)} ${plural(tabs, ['сохранена', 'сохранены', 'сохранены'])}.`
+        : `Вкладка убрана в TabFlow — в группу ${title}.`;
+    case 'sleepCurrent':
+      return `Группа ${title} уснула — ${count(tabs, TABS)}. Вкладки остались на месте.${failedNote}`;
+    case 'sleepInactive':
+      return groups === 0
+        ? 'Усыплять нечего — других активных групп нет.'
+        : `Уснули: ${count(groups, GROUPS)} · ${count(tabs, TABS)}. Вкладки остались на месте.${failedNote}`;
+    case 'stowSelected':
+      return `${count(tabs, TABS)} ${plural(tabs, ['убрана', 'убраны', 'убраны'])} в TabFlow — группа ${title}.`;
+    case 'saveToGroup':
+      return `Вкладка сохранена в ${title}.`;
+    case 'saveLink':
+      return tabs === 0
+        ? `Ссылка уже есть в ${title}.`
+        : `Ссылка сохранена в ${title}.${failedNote}`;
+    case 'openApp':
+      return 'TabFlow открыт.';
   }
 }

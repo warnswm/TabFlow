@@ -2,10 +2,13 @@ import { type Background, createBackground } from '../background';
 import type { BackgroundContext } from '../background/context';
 import { setupTestDb, type TestContext } from '../db/test-utils';
 import type { Command, CommandResponse } from '../messages';
+import { FakeExtensionUi } from './fake-extension-ui';
 import { FakeTabsApi } from './fake-tabs-api';
 
 export interface BackgroundTestContext extends TestContext {
   api: FakeTabsApi;
+  /** What the badge and the context menu show. */
+  ui: FakeExtensionUi;
   ctx: BackgroundContext;
   bg: Background;
   /** Sends a command and waits until the events it caused are handled. */
@@ -22,11 +25,13 @@ export interface BackgroundTestContext extends TestContext {
 export function setupBackground({ supportsGroups = true } = {}): BackgroundTestContext {
   const test = setupTestDb();
   const api = new FakeTabsApi(supportsGroups);
-  const ctx: BackgroundContext = { api, db: test.db, repos: test, clock: () => test.now.value };
+  const ui = new FakeExtensionUi();
+  const ctx: BackgroundContext = { api, ui, db: test.db, repos: test, clock: () => test.now.value };
 
   const context: BackgroundTestContext = {
     ...test,
     api,
+    ui,
     ctx,
     bg: wire(),
     async command(command) {

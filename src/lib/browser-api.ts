@@ -5,6 +5,7 @@
  */
 import { browser, type Browser } from 'wxt/browser';
 import { GROUP_COLORS, type GroupColor } from './db/models';
+import type { MenuClick, MenuItem } from './menus';
 import { cachedFaviconUrl, parsePlaceholderUrl, PLACEHOLDER_PAGE_PATH } from './placeholder';
 
 /** Path of the main TabFlow page inside the extension bundle. */
@@ -63,6 +64,116 @@ export function onRuntimeMessage(handler: (message: unknown) => Promise<unknown>
 }
 
 // ---------------------------------------------------------------------------
+// The TabFlow icon: badge, context menu, keyboard shortcuts
+// ---------------------------------------------------------------------------
+
+/** What the background shows outside its pages. Tests use a fake. */
+export interface ExtensionUi {
+  /** Number on the TabFlow icon (empty — no badge) and the icon's tooltip. */
+  setBadge(text: string, title: string): Promise<void>;
+  /** Replaces the whole context menu of TabFlow. */
+  setMenu(items: readonly MenuItem[]): Promise<void>;
+}
+
+/** Badge colors: the accent with its text color (`accent` / `on-accent` tokens). */
+const BADGE_BACKGROUND = '#2DD4BF';
+const BADGE_TEXT = '#04201C';
+
+/** The context menu works on web pages and files only (as do the saved tabs). */
+const WEB_PATTERNS = ['http://*/*', 'https://*/*', 'file:///*'];
+
+export function createExtensionUi(): ExtensionUi {
+  const { action } = browser;
+  void action.setBadgeBackgroundColor({ color: BADGE_BACKGROUND });
+  // `setBadgeTextColor` — Chrome 110+.
+  if (typeof action.setBadgeTextColor === 'function') {
+    void action.setBadgeTextColor({ color: BADGE_TEXT });
+  }
+  const menus = (browser as Partial<typeof browser>).contextMenus;
+
+  return {
+    async setBadge(text, title) {
+      await action.setBadgeText({ text });
+      await action.setTitle({ title });
+    },
+
+    async setMenu(items) {
+      if (!menus) return;
+      await menus.removeAll();
+      for (const item of items) {
+        const web = item.contexts.includes('action')
+          ? {}
+          : {
+              documentUrlPatterns: WEB_PATTERNS,
+              ...(item.contexts.includes('link') ? { targetUrlPatterns: WEB_PATTERNS } : {}),
+            };
+        menus.create(
+          {
+            id: item.id,
+            contexts: item.contexts as [Browser.contextMenus.ContextType],
+            ...(item.separator ? { type: 'separator' } : { title: item.title }),
+            ...(item.parentId === undefined ? {} : { parentId: item.parentId }),
+            ...(item.enabled === false ? { enabled: false } : {}),
+            ...web,
+          },
+          () => {
+            const error = browser.runtime.lastError;
+            if (error) console.warn(`[TabFlow] Menu item ${item.id}:`, error.message);
+          },
+        );
+      }
+    },
+  };
+}
+
+/** Clicks on the TabFlow context menu. Call synchronously at service worker start. */
+export function onMenuClick(handler: (click: MenuClick) => void): void {
+  (browser as Partial<typeof browser>).contextMenus?.onClicked.addListener((info, tab) => {
+    handler({ itemId: String(info.menuItemId), tabId: tab?.id, linkUrl: info.linkUrl });
+  });
+}
+
+/** Keyboard shortcuts of TabFlow. Call synchronously at service worker start. */
+export function onHotkey(handler: (name: string, tabId?: number) => void): void {
+  browser.commands.onCommand.addListener((name, tab) => handler(name, tab?.id));
+}
+
+/** The key assigned to a shortcut (empty when the author removed it). */
+export async function getHotkey(name: string): Promise<string> {
+  const commands = await browser.commands.getAll();
+  return commands.find((command) => command.name === name)?.shortcut ?? '';
+}
+
+/** What the popup needs to know about the open tabs. */
+export interface OpenTabsInfo {
+  /** Open tabs in all windows. */
+  count: number;
+  /** Native groups of the tabs shown in the windows (their active tabs). */
+  shownGroupIds: number[];
+  /** The active tab of the popup's window. */
+  current?: BrowserTab;
+  /** Tabs selected in the popup's window (the active one included). */
+  selected: number;
+}
+
+export async function getOpenTabsInfo(): Promise<OpenTabsInfo> {
+  const placeholderPageUrl = browser.runtime.getURL(PLACEHOLDER_PAGE_PATH);
+  const [all, [current], selected] = await Promise.all([
+    browser.tabs.query({}),
+    browser.tabs.query({ active: true, currentWindow: true }),
+    browser.tabs.query({ highlighted: true, currentWindow: true }),
+  ]);
+  return {
+    selected: selected.length,
+    count: all.length,
+    shownGroupIds: all
+      .filter((tab) => tab.active && tab.groupId !== undefined && tab.groupId !== NO_GROUP)
+      .map((tab) => tab.groupId),
+    current: current && toBrowserTab(current, placeholderPageUrl),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tabs, native tab groups and windows
 // ---------------------------------------------------------------------------
 
@@ -93,6 +204,11 @@ export interface BrowserTab {
   favIconUrl?: string;
   pinned: boolean;
   active: boolean;
+  /**
+   * Selected on the tab strip (Ctrl+click, Shift+click). The active tab is always selected;
+   * activating a tab leaves only it selected.
+   */
+  highlighted: boolean;
   discarded: boolean;
   /** Native group id or `NO_GROUP`. */
   groupId: number;
@@ -204,6 +320,7 @@ function toBrowserTab(tab: Browser.tabs.Tab, placeholderPageUrl: string): Browse
     favIconUrl: target ? target.favIconUrl : tab.favIconUrl || undefined,
     pinned: tab.pinned,
     active: tab.active,
+    highlighted: tab.highlighted,
     discarded: tab.discarded,
     groupId: tab.groupId ?? NO_GROUP,
   };

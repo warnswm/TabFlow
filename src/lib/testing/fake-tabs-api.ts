@@ -80,6 +80,7 @@ export class FakeTabsApi implements TabsApi {
       title: seed.title ?? seed.url,
       pinned: seed.pinned ?? false,
       active: false,
+      highlighted: false,
       discarded: seed.discarded ?? false,
       groupId: NO_GROUP,
     };
@@ -111,6 +112,11 @@ export class FakeTabsApi implements TabsApi {
   userUpdateTab(tabId: number, patch: Partial<Pick<BrowserTab, 'url' | 'title'>>): void {
     Object.assign(this.require(tabId), patch);
     this.emit({ type: 'tabUpdated', tabId });
+  }
+
+  /** The user selected more tabs with Ctrl+click; the active tab stays selected. */
+  userSelectTabs(tabIds: readonly number[]): void {
+    for (const id of tabIds) this.require(id).highlighted = true;
   }
 
   /** The user dragged a tab into an existing group. */
@@ -473,7 +479,9 @@ export class FakeTabsApi implements TabsApi {
 
   private setActive(tab: TabRecord): void {
     for (const other of this.tabs) {
-      if (other.windowId === tab.windowId) other.active = other === tab;
+      if (other.windowId !== tab.windowId) continue;
+      other.active = other === tab;
+      other.highlighted = other === tab; // as in Chrome: activating clears the selection
     }
     this.windows = [...this.windows.filter((id) => id !== tab.windowId), tab.windowId];
   }

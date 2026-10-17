@@ -34,7 +34,27 @@ export type Command =
    * Puts a link at `index` of a group — its own (new order) or another one. The open tab follows
    * on the tab strip; the last link of a group leaves the empty group in the trash.
    */
-  | { type: 'moveTab'; tabId: Id; groupId: Id; index: number };
+  | { type: 'moveTab'; tabId: Id; groupId: Id; index: number }
+  /**
+   * «Убрать в TabFlow» for a Chrome tab (default: the active tab of the current window): its whole
+   * group when the tab is in one, otherwise the tab alone into the day group in «Входящие».
+   */
+  | { type: 'stowCurrent'; chromeTabId?: number }
+  /** Puts the group of a Chrome tab (default: the active one) to sleep. */
+  | { type: 'sleepCurrent'; chromeTabId?: number }
+  /**
+   * Stows the tabs selected in the current window (Ctrl+click, Shift+click) as one new group in
+   * «Входящие»; links of other groups move into it.
+   */
+  | { type: 'stowSelected' }
+  /** Puts every active group to sleep except the groups of the tabs shown in the windows. */
+  | { type: 'sleepInactive' }
+  /** Saves an open Chrome tab into a group: closed if the group is stowed, moved into it if not. */
+  | { type: 'saveToGroup'; chromeTabId: number; groupId: Id }
+  /** Saves a link without opening it — into a group or the day group in «Входящие». */
+  | { type: 'saveLink'; url: string; title?: string; groupId?: Id }
+  /** Shows the main TabFlow page of the current window, opening it if needed. */
+  | { type: 'openApp' };
 
 /**
  * How restored tabs wait until opened (see `restoreGroup`). Both are kept: the choice moves to
@@ -56,6 +76,8 @@ export interface CommandResult {
   closedGroupIds: Id[];
   /** `moveTab`: where the link was, for undo. */
   movedFrom?: MovedFrom;
+  /** Title of the group the command stowed, put to sleep or saved into. */
+  groupTitle?: string;
 }
 
 export interface MovedFrom {
@@ -76,6 +98,8 @@ export type CommandErrorCode =
   | 'space-not-found'
   | 'space-protected'
   | 'tab-not-found'
+  | 'tab-not-in-group'
+  | 'tab-not-saveable'
   | 'not-in-trash'
   | 'unexpected';
 
@@ -123,6 +147,17 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
   },
   openTab: { tabId: isId },
   moveTab: { tabId: isId, groupId: isId, index: isIndex },
+  stowCurrent: { chromeTabId: (v) => isOptional(v, isIndex) },
+  sleepCurrent: { chromeTabId: (v) => isOptional(v, isIndex) },
+  sleepInactive: {},
+  stowSelected: {},
+  saveToGroup: { chromeTabId: isIndex, groupId: isId },
+  saveLink: {
+    url: (v) => typeof v === 'string' && v !== '',
+    title: (v) => isOptional(v, isTitle),
+    groupId: (v) => isOptional(v, isId),
+  },
+  openApp: {},
 };
 
 /** Validates a message received by the background. */

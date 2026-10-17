@@ -35,6 +35,24 @@ describe('isCommand', () => {
     expect(isCommand({ type: 'toString' })).toBe(false);
   });
 
+  it('accepts the stage 5 commands and rejects malformed ones', () => {
+    expect(isCommand({ type: 'stowCurrent' })).toBe(true);
+    expect(isCommand({ type: 'stowCurrent', chromeTabId: 12 })).toBe(true);
+    expect(isCommand({ type: 'sleepCurrent', chromeTabId: 0 })).toBe(true);
+    expect(isCommand({ type: 'sleepInactive' })).toBe(true);
+    expect(isCommand({ type: 'stowSelected' })).toBe(true);
+    expect(isCommand({ type: 'saveToGroup', chromeTabId: 12, groupId: 'g1' })).toBe(true);
+    expect(isCommand({ type: 'saveLink', url: 'https://a.example/' })).toBe(true);
+    expect(isCommand({ type: 'saveLink', url: 'https://a.example/', groupId: 'g1' })).toBe(true);
+    expect(isCommand({ type: 'openApp' })).toBe(true);
+
+    expect(isCommand({ type: 'stowCurrent', chromeTabId: -1 })).toBe(false);
+    expect(isCommand({ type: 'stowCurrent', chromeTabId: '12' })).toBe(false);
+    expect(isCommand({ type: 'saveToGroup', groupId: 'g1' })).toBe(false);
+    expect(isCommand({ type: 'saveLink', url: '' })).toBe(false);
+    expect(isCommand({ type: 'saveLink', url: 'https://a.example/', groupId: 3 })).toBe(false);
+  });
+
   it('rejects unknown restore modes', () => {
     expect(isCommand({ type: 'restoreGroup', groupId: 'g1', mode: 'teleport' })).toBe(false);
     expect(isCommand({ type: 'stowGroup', groupId: 'g1', mode: 'placeholder' })).toBe(false);

@@ -77,7 +77,7 @@ export async function moveTab(
 }
 
 /** Moves an open tab into the native group of `target`, to the place of its link. */
-async function moveIntoGroup(
+export async function moveIntoGroup(
   ctx: BackgroundContext,
   target: TabGroup,
   linkId: Id,
@@ -107,7 +107,7 @@ async function moveIntoGroup(
 }
 
 /** Opens a link that had no tab as a tab of `target`'s native group. False if it did not open. */
-async function openInGroup(
+export async function openInGroup(
   ctx: BackgroundContext,
   target: TabGroup,
   linkId: Id,

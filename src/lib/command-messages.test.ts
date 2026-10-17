@@ -52,6 +52,31 @@ describe('command messages', () => {
     expect(describeResponse('deleteTab', ok(1, 1), 'Покупки')).toContain('вместе с группой');
   });
 
+  it('describes the quick actions', () => {
+    const titled = (groups: number, tabs: number, groupTitle: string): CommandResponse => ({
+      ok: true,
+      result: { groups, tabs, failed: 0, closedGroupIds: [], groupTitle },
+    });
+    expect(describeResponse('stowCurrent', titled(1, 12, 'Учёба'))).toBe(
+      '«Учёба» убрана в TabFlow. 12 вкладок сохранены.',
+    );
+    expect(describeResponse('stowCurrent', titled(0, 1, '17 окт · отложено'))).toBe(
+      'Вкладка убрана в TabFlow — в группу «17 окт · отложено».',
+    );
+    expect(describeResponse('sleepCurrent', titled(1, 3, 'Учёба'))).toBe(
+      'Группа «Учёба» уснула — 3 вкладки. Вкладки остались на месте.',
+    );
+    expect(describeResponse('sleepInactive', ok(2, 9))).toBe(
+      'Уснули: 2 группы · 9 вкладок. Вкладки остались на месте.',
+    );
+    expect(describeResponse('sleepInactive', ok(0, 0))).toBe(
+      'Усыплять нечего — других активных групп нет.',
+    );
+    expect(describeResponse('saveLink', titled(0, 0, 'Работа'))).toBe(
+      'Ссылка уже есть в «Работа».',
+    );
+  });
+
   it('never blames and always says nothing is lost on errors', () => {
     const text = describeResponse('stowGroup', { ok: false, code: 'unexpected', message: 'x' });
     expect(text).toContain('остались на месте');
