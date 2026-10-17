@@ -12,7 +12,14 @@ import {
 } from '../messages';
 import { collapseAll } from './collapse';
 import type { BackgroundContext } from './context';
-import { editGroup, openTab, restoreGroup, sleepGroup, stowGroup } from './group-actions';
+import {
+  editGroup,
+  openTab,
+  restoreGroup,
+  sleepGroup,
+  sleepLinks,
+  stowGroup,
+} from './group-actions';
 import { handleTabsEvent, reconcileAll } from './mirror';
 import { moveTab } from './move-tab';
 import {
@@ -126,6 +133,8 @@ function runCommand(
       return removeVideo(ctx, command.itemId);
     case 'restoreVideo':
       return restoreVideo(ctx, command.itemId);
+    case 'sleepLinks':
+      return sleepLinks(ctx, command.tabIds);
     case 'videoProgress':
       if (origin.kind !== 'content') throw new CommandError('invalid-command', 'Not from a page');
       return videoProgress(ctx, origin.tabId, command);

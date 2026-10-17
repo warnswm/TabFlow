@@ -1,6 +1,6 @@
 import { useDndMonitor } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
-import { Ellipsis, Minimize2, Pencil, Search, Trash } from 'lucide-react';
+import { Columns2, Ellipsis, Minimize2, Pencil, Search, Trash } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
 import { useMemo, useState } from 'react';
 import { emptyFilterText, filterGroups, STATE_FILTERS, stateCounts } from '@/lib/app/filters';
@@ -13,7 +13,7 @@ import { runCommand } from '../commands';
 import { dragData } from '../dnd';
 import { useNow } from '../hooks';
 import { useUi } from '../store';
-import { BUTTON_ICON, BUTTON_PRIMARY, MENU_CONTENT, MENU_ITEM } from '../ui';
+import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, MENU_CONTENT, MENU_ITEM } from '../ui';
 import { EditGroupDialog, GroupLinksDialog } from './GroupDialogs';
 import { GroupTile } from './GroupTile';
 import { QueueStrip } from './QueueStrip';
@@ -118,6 +118,14 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
 
         <SearchField />
 
+        <button
+          type="button"
+          onClick={() => useUi.getState().openTileDialog()}
+          className={BUTTON_SECONDARY}
+        >
+          <Columns2 aria-hidden className="size-4" />
+          Рядом
+        </button>
         <button
           type="button"
           onClick={() => runCommand({ type: 'collapseAll' })}

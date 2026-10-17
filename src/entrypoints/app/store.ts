@@ -33,6 +33,10 @@ interface UiState {
   newSpaceOpen: boolean;
   /** A tile to scroll to and outline for a moment (chosen in the palette). */
   focusGroupId?: Id;
+  /** The dialog «Рядом» is open; `groupId` — the group it starts at (menu of a tile). */
+  tileDialog?: { groupId?: Id };
+  /** Where «К группам» of the viewer goes back to (the screen «Рядом» was opened from). */
+  viewerReturn?: string;
   showToast(text: string, undo?: () => void): void;
   dismissToast(id: number): void;
   setRestoreMode(mode: RestoreMode, persist?: boolean): void;
@@ -44,6 +48,9 @@ interface UiState {
   setPaletteOpen(open: boolean): void;
   setNewSpaceOpen(open: boolean): void;
   focusGroup(id?: Id): void;
+  openTileDialog(groupId?: Id): void;
+  closeTileDialog(): void;
+  setViewerReturn(hash: string): void;
 }
 
 let nextToastId = 1;
@@ -72,4 +79,7 @@ export const useUi = create<UiState>()((set) => ({
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setNewSpaceOpen: (newSpaceOpen) => set({ newSpaceOpen }),
   focusGroup: (focusGroupId) => set({ focusGroupId }),
+  openTileDialog: (groupId) => set({ tileDialog: groupId === undefined ? {} : { groupId } }),
+  closeTileDialog: () => set({ tileDialog: undefined }),
+  setViewerReturn: (viewerReturn) => set({ viewerReturn }),
 }));

@@ -104,3 +104,25 @@ export interface QueueItem extends BaseRecord {
   order: number;
   watchedAt?: Timestamp;
 }
+
+/** A link of a saved layout. The copy of the address opens the page when the link is gone. */
+export interface LayoutLink {
+  /** The `SavedTab` it was made from. */
+  tabId: Id;
+  url: string;
+  title: string;
+}
+
+/**
+ * A saved layout of «Рядом»: 2–4 links shown side by side on the main page. The arrangement
+ * follows the number of links (see `tiling/layout.ts`), so only the links in pane order are kept.
+ * Deleted for good (undo puts the record back), not moved to the trash.
+ */
+export interface TileLayout {
+  id: Id;
+  name: string;
+  order: number;
+  links: LayoutLink[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

@@ -2,6 +2,7 @@ import {
   Archive,
   ArchiveRestore,
   ChevronRight,
+  Columns2,
   Ellipsis,
   Eye,
   FolderInput,
@@ -14,6 +15,7 @@ import {
 import { DropdownMenu } from 'radix-ui';
 import type { Space, TabGroup } from '@/lib/db';
 import { moveGroupToSpace, runCommand } from '../commands';
+import { useUi } from '../store';
 import { BUTTON_ICON, MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR } from '../ui';
 
 interface GroupMenuProps {
@@ -69,6 +71,12 @@ export function GroupMenu({ group, spaces, onOpenLinks, onEdit, onRestore }: Gro
           <DropdownMenu.Separator className={MENU_SEPARATOR} />
           <DropdownMenu.Item className={MENU_ITEM} onSelect={onOpenLinks}>
             <List aria-hidden /> Ссылки
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className={MENU_ITEM}
+            onSelect={() => useUi.getState().openTileDialog(group.id)}
+          >
+            <Columns2 aria-hidden /> Рядом…
           </DropdownMenu.Item>
           <DropdownMenu.Item className={MENU_ITEM} onSelect={onEdit}>
             <Pencil aria-hidden /> Название и цвет

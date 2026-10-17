@@ -282,6 +282,33 @@ export async function restoreGroup(
   return result({ groups: 1, tabs: linked.length, failed });
 }
 
+/**
+ * «Рядом»: the links are shown side by side on the main page, so their open tabs on the tab strip
+ * are unloaded and stay in place. A tab shown in its window cannot be unloaded and stays as is;
+ * the mirror puts a group to sleep when all its tabs are unloaded.
+ */
+export async function sleepLinks(
+  ctx: BackgroundContext,
+  tabIds: readonly Id[],
+): Promise<CommandResult> {
+  const { api, repos } = ctx;
+  let slept = 0;
+  for (const id of tabIds) {
+    const link = await repos.tabs.get(id);
+    const tab = link?.chromeTabId === undefined ? undefined : await api.getTab(link.chromeTabId);
+    if (!link || !tab || tab.discarded || tab.active || !tab.committed) continue;
+    try {
+      const discarded = await api.discardTab(tab.id);
+      if (!discarded?.discarded) continue; // Chrome refused: the tab stays loaded
+      if (discarded.id !== tab.id) await repos.tabs.update(link.id, { chromeTabId: discarded.id });
+      slept++;
+    } catch {
+      // Stays loaded.
+    }
+  }
+  return result({ tabs: slept });
+}
+
 /** A just opened tab is checked this often, for up to 15 s. */
 export const COMMIT_POLL_MS = 50;
 const COMMIT_MAX_POLLS = 300;

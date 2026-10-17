@@ -5,6 +5,7 @@
  */
 import { sendRuntimeMessage } from './browser-api';
 import { GROUP_COLORS, type GroupColor, type Id } from './db/models';
+import { MAX_TILES } from './tiling/layout';
 
 /** What can be brought back from the trash. */
 export const TRASH_KINDS = ['space', 'group', 'tab'] as const;
@@ -72,6 +73,11 @@ export type Command =
   | { type: 'removeVideo'; itemId: Id }
   /** Brings a removed video back (undo). */
   | { type: 'restoreVideo'; itemId: Id }
+  /**
+   * «Рядом»: the links are shown side by side on the main page, so their open tabs on the tab
+   * strip are unloaded (they stay in place). The tab shown in a window is left as is.
+   */
+  | { type: 'sleepLinks'; tabIds: Id[] }
   /**
    * From the content script of a video page: duration and position of its video. Only accepted
    * from content scripts — the background takes the page from the sender tab.
@@ -235,6 +241,9 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
   setWatched: { itemId: isId, watched: (v) => typeof v === 'boolean' },
   removeVideo: { itemId: isId },
   restoreVideo: { itemId: isId },
+  sleepLinks: {
+    tabIds: (v) => Array.isArray(v) && v.length > 0 && v.length <= MAX_TILES && v.every(isId),
+  },
   videoProgress: {
     positionSec: isSeconds,
     durationSec: (v) => isOptional(v, (d) => isSeconds(d) && (d as number) > 0),

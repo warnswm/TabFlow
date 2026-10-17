@@ -181,6 +181,58 @@ export async function injectVideoScript(patterns: readonly string[]): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
+// «Рядом»: sites in frames of the main page
+// ---------------------------------------------------------------------------
+
+type Dnr = typeof browser.declarativeNetRequest;
+
+/**
+ * Lets sites show in frames of this page (the viewer of «Рядом»). Many sites forbid framing with
+ * `X-Frame-Options` or `Content-Security-Policy: frame-ancestors`; a session rule removes these
+ * headers from frame responses — only in this tab, only on sites TabFlow has access to
+ * (`declarativeNetRequestWithHostAccess`), and not after the browser restarts. The rule lives as
+ * long as the tab (the main page has no other frames); rules of closed tabs are dropped here.
+ * False where the API is missing: frames then load as usual.
+ */
+export async function allowFramesInThisTab(): Promise<boolean> {
+  const dnr = (browser as Partial<typeof browser>).declarativeNetRequest;
+  const tabId = (await browser.tabs.getCurrent())?.id;
+  if (!dnr || tabId === undefined) return false;
+  const ruleId = tabId; // tab ids are unique within a browser session, as are session rules
+  const openTabs = new Set((await browser.tabs.query({})).map((tab) => tab.id));
+  const stale = (await dnr.getSessionRules())
+    .map((rule) => rule.id)
+    .filter((id) => !openTabs.has(id));
+  const remove = (header: string) => ({
+    header,
+    operation: 'remove' as Dnr['HeaderOperation']['REMOVE'],
+  });
+  await dnr.updateSessionRules({
+    removeRuleIds: [...new Set([...stale, ruleId])],
+    addRules: [
+      {
+        id: ruleId,
+        priority: 1,
+        action: {
+          type: 'modifyHeaders' as Dnr['RuleActionType']['MODIFY_HEADERS'],
+          responseHeaders: [remove('x-frame-options'), remove('content-security-policy')],
+        },
+        condition: {
+          tabIds: [tabId],
+          resourceTypes: ['sub_frame' as Dnr['ResourceType']['SUB_FRAME']],
+        },
+      },
+    ],
+  });
+  return true;
+}
+
+/** Opens a page in a new tab of the current window (a link of a layout that is gone). */
+export async function openPageInNewTab(url: string): Promise<void> {
+  await browser.tabs.create({ url });
+}
+
+// ---------------------------------------------------------------------------
 // The side panel (Chrome 114+)
 // ---------------------------------------------------------------------------
 

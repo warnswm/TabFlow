@@ -9,6 +9,8 @@ import { CommandPalette } from './components/CommandPalette';
 import { GroupDragChip } from './components/GroupTile';
 import { Sidebar, SpaceGhost } from './components/Sidebar';
 import { SpaceView } from './components/SpaceView';
+import { SideBySideView } from './components/SideBySideView';
+import { TileDialog } from './components/TileDialog';
 import { Toaster } from './components/Toaster';
 import { TrashView } from './components/TrashView';
 import {
@@ -76,6 +78,16 @@ export default function App() {
 
   if (!overview || !index) return <div className="min-h-screen bg-bg" />;
 
+  // «Рядом»: the whole page becomes the viewer.
+  if (route.view === 'side' || route.view === 'layout') {
+    return (
+      <>
+        <SideBySideView route={route} overview={overview} />
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <>
       <DndContext
@@ -125,6 +137,7 @@ export default function App() {
         index={index}
         currentSpaceId={route.view === 'space' ? spaceView?.space.id : undefined}
       />
+      <TileDialog overview={overview} index={index} />
     </>
   );
 }

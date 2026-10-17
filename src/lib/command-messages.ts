@@ -114,6 +114,10 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
         : `Ссылка сохранена в ${title}.${failedNote}`;
     case 'openApp':
       return 'TabFlow открыт.';
+    case 'sleepLinks':
+      return tabs === 0
+        ? 'Ссылки открыты рядом.'
+        : `Ссылки открыты рядом. ${count(tabs, TABS)} на панели ${plural(tabs, ['уснула', 'уснули', 'уснули'])} — остались на месте.`;
     case 'queueTab':
     case 'queueLink':
     case 'openVideo':

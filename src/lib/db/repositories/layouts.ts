@@ -1,0 +1,64 @@
+import { isTileCount, MAX_TILES, MIN_TILES } from '../../tiling/layout';
+import type { TabFlowDB } from '../db';
+import type { Id, LayoutLink, TileLayout } from '../models';
+import { orderAfterLast } from '../order';
+import { type Clock, newId, RecordNotFoundError, systemClock } from './common';
+
+/** Saved layouts of «Рядом». */
+export class LayoutRepository {
+  constructor(
+    private readonly db: TabFlowDB,
+    private readonly clock: Clock = systemClock,
+  ) {}
+
+  /** Layouts sorted by `order` (the newest last). */
+  list(): Promise<TileLayout[]> {
+    return this.db.layouts.orderBy('order').toArray();
+  }
+
+  get(id: Id): Promise<TileLayout | undefined> {
+    return this.db.layouts.get(id);
+  }
+
+  async create(name: string, links: readonly LayoutLink[]): Promise<TileLayout> {
+    if (!isTileCount(links.length)) {
+      throw new RangeError(`A layout holds ${MIN_TILES}–${MAX_TILES} links, got ${links.length}`);
+    }
+    return this.db.transaction('rw', this.db.layouts, async () => {
+      const now = this.clock();
+      const layout: TileLayout = {
+        id: newId(),
+        name: name.trim(),
+        order: orderAfterLast(await this.list()),
+        links: links.map(({ tabId, url, title }) => ({ tabId, url, title })),
+        createdAt: now,
+        updatedAt: now,
+      };
+      await this.db.layouts.add(layout);
+      return layout;
+    });
+  }
+
+  async rename(id: Id, name: string): Promise<void> {
+    const changed = await this.db.layouts.update(id, {
+      name: name.trim(),
+      updatedAt: this.clock(),
+    });
+    if (changed === 0) throw new RecordNotFoundError('Layout', id);
+  }
+
+  /** Deletes the layout for good; returns it, so that undo can put it back with `restore`. */
+  async remove(id: Id): Promise<TileLayout> {
+    return this.db.transaction('rw', this.db.layouts, async () => {
+      const layout = await this.db.layouts.get(id);
+      if (!layout) throw new RecordNotFoundError('Layout', id);
+      await this.db.layouts.delete(id);
+      return layout;
+    });
+  }
+
+  /** Puts a deleted layout back as it was (undo). */
+  async restore(layout: TileLayout): Promise<void> {
+    await this.db.layouts.put(layout);
+  }
+}

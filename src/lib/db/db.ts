@@ -1,5 +1,5 @@
 import { Dexie, type EntityTable } from 'dexie';
-import type { QueueItem, SavedTab, Space, TabGroup } from './models';
+import type { QueueItem, SavedTab, Space, TabGroup, TileLayout } from './models';
 
 export const DB_NAME = 'tabflow';
 
@@ -12,6 +12,8 @@ export class TabFlowDB extends Dexie {
   groups!: EntityTable<TabGroup, 'id'>;
   tabs!: EntityTable<SavedTab, 'id'>;
   queue!: EntityTable<QueueItem, 'id'>;
+  /** Saved layouts of «Рядом». */
+  layouts!: EntityTable<TileLayout, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -20,6 +22,10 @@ export class TabFlowDB extends Dexie {
       groups: 'id, spaceId, [spaceId+order], chromeGroupId, deletedAt',
       tabs: 'id, groupId, [groupId+order], url, chromeTabId, deletedAt',
       queue: 'id, order, status, url, videoId, deletedAt',
+    });
+    // Saved layouts of «Рядом».
+    this.version(2).stores({
+      layouts: 'id, order',
     });
   }
 }

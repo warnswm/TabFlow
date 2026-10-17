@@ -3,7 +3,7 @@ import type { SavedTab, Space, TabGroup } from '../db/models';
 import { TRASH_RETENTION_MS } from '../db/repositories/trash';
 import type { CommandResult } from '../messages';
 import { buildOverview, displayHost } from './overview';
-import { parseRoute, routeHash } from './route';
+import { parseRoute, type Route, routeHash } from './route';
 import { daysLeft, DAY_MS, shortDate, timeAgo } from './time-format';
 import { buildTrashView, groupTrashedTabs } from './trash-view';
 import { undoCommands } from './undo';
@@ -243,6 +243,21 @@ describe('route', () => {
     expect(routeHash({ view: 'space', spaceId: 'a/b' })).toBe('#/space/a%2Fb');
     expect(routeHash({ view: 'space' })).toBe('#/');
     expect(parseRoute(routeHash({ view: 'trash' }))).toEqual({ view: 'trash' });
+  });
+
+  it('keeps the links of «Рядом» and a saved layout in the hash', () => {
+    const side: Route = { view: 'side', tabIds: ['a', 'b/c'] };
+    expect(routeHash(side)).toBe('#/side/a,b%2Fc');
+    expect(parseRoute(routeHash(side))).toEqual(side);
+    expect(parseRoute('#/side/a,a,b,c,d,e')).toEqual({
+      view: 'side',
+      tabIds: ['a', 'b', 'c', 'd'],
+    });
+    expect(parseRoute('#/side/')).toEqual({ view: 'space' });
+    expect(parseRoute(routeHash({ view: 'layout', layoutId: 'x' }))).toEqual({
+      view: 'layout',
+      layoutId: 'x',
+    });
   });
 });
 

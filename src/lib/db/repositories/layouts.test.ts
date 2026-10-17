@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+import { setupTestDb } from '../test-utils';
+
+const link = (n: number) => ({
+  tabId: `tab-${n}`,
+  url: `https://example.com/${n}`,
+  title: `Page ${n}`,
+});
+
+describe('LayoutRepository', () => {
+  it('keeps layouts in the order they were saved, the newest last', async () => {
+    const t = setupTestDb();
+    const first = await t.layouts.create('  Учёба  ', [link(1), link(2)]);
+    const second = await t.layouts.create('Работа', [link(3), link(4), link(5)]);
+    expect(first.name).toBe('Учёба');
+    expect((await t.layouts.list()).map((layout) => layout.id)).toEqual([first.id, second.id]);
+  });
+
+  it('holds two to four links', async () => {
+    const t = setupTestDb();
+    await expect(t.layouts.create('Одна', [link(1)])).rejects.toThrow(RangeError);
+    await expect(
+      t.layouts.create('Пять', [link(1), link(2), link(3), link(4), link(5)]),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it('renames a layout', async () => {
+    const t = setupTestDb();
+    const layout = await t.layouts.create('Учёба', [link(1), link(2)]);
+    t.now.value += 1000;
+    await t.layouts.rename(layout.id, 'Лекция');
+    expect(await t.layouts.get(layout.id)).toMatchObject({
+      name: 'Лекция',
+      updatedAt: layout.updatedAt + 1000,
+    });
+  });
+
+  it('deletes a layout for good and puts it back on undo', async () => {
+    const t = setupTestDb();
+    const layout = await t.layouts.create('Учёба', [link(1), link(2)]);
+    const removed = await t.layouts.remove(layout.id);
+    expect(await t.layouts.list()).toEqual([]);
+    await t.layouts.restore(removed);
+    expect(await t.layouts.list()).toEqual([layout]);
+    await expect(t.layouts.rename('missing', 'X')).rejects.toThrow('not found');
+  });
+});

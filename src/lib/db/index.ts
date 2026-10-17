@@ -1,6 +1,7 @@
 import { TabFlowDB } from './db';
 import { type Clock, systemClock } from './repositories/common';
 import { GroupRepository } from './repositories/groups';
+import { LayoutRepository } from './repositories/layouts';
 import { QueueRepository } from './repositories/queue';
 import { SpaceRepository } from './repositories/spaces';
 import { TabRepository } from './repositories/tabs';
@@ -20,6 +21,8 @@ export interface Repositories {
   tabs: TabRepository;
   queue: QueueRepository;
   trash: TrashRepository;
+  /** Saved layouts of «Рядом». */
+  layouts: LayoutRepository;
 }
 
 export function createRepositories(db: TabFlowDB, clock: Clock = systemClock): Repositories {
@@ -29,6 +32,7 @@ export function createRepositories(db: TabFlowDB, clock: Clock = systemClock): R
     tabs: new TabRepository(db, clock),
     queue: new QueueRepository(db, clock),
     trash: new TrashRepository(db, clock),
+    layouts: new LayoutRepository(db, clock),
   };
 }
 
