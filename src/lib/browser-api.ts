@@ -153,6 +153,8 @@ export interface TabsApi {
    */
   moveTab(tabId: number, to: { index: number; windowId?: number }): Promise<void>;
   removeTabs(tabIds: readonly number[]): Promise<void>;
+  /** Loads the tab's page again, in the background (also brings an unloaded tab back). */
+  reloadTab(tabId: number): Promise<void>;
   /**
    * Unloads the tab from memory; it stays on the tab strip. Returns the tab (its id may change),
    * or `undefined` when Chrome refused to discard it — Chrome does not throw in that case.
@@ -278,6 +280,10 @@ export function createBrowserTabsApi(): TabsApi {
 
     async moveTab(tabId, { index, windowId }) {
       await browser.tabs.move(tabId, windowId === undefined ? { index } : { index, windowId });
+    },
+
+    async reloadTab(tabId) {
+      await browser.tabs.reload(tabId);
     },
 
     async removeTabs(tabIds) {

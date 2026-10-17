@@ -240,10 +240,18 @@ export async function handleTabsEvent(ctx: BackgroundContext, event: TabsEvent):
  * groups restored by Chrome are matched to mirrors by title, color and URLs. Groups that were
  * stowed when their window closed come back to the strip this way instead of being duplicated.
  * Mirrors left without a native group become stowed; new native groups get a mirror.
+ * `reopenMissing` runs for every matched group before it is synced: links whose tabs are gone
+ * can be opened again there instead of going to the trash.
  */
 export async function reconcileAll(
   ctx: BackgroundContext,
-  { idsAreStale }: { idsAreStale: boolean },
+  {
+    idsAreStale,
+    reopenMissing,
+  }: {
+    idsAreStale: boolean;
+    reopenMissing?: (mirror: TabGroup, chromeGroup: BrowserGroup) => Promise<void>;
+  },
 ): Promise<void> {
   const { api, repos } = ctx;
   if (!api.supportsGroups) return;
@@ -271,6 +279,13 @@ export async function reconcileAll(
         chromeGroupId: chromeGroup.id,
         windowId: chromeGroup.windowId,
       });
+    }
+  }
+
+  if (reopenMissing) {
+    for (const chromeGroup of chromeGroups) {
+      const mirror = await repos.groups.findByChromeGroupId(chromeGroup.id);
+      if (mirror) await reopenMissing(mirror, chromeGroup);
     }
   }
 

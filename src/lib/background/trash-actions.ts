@@ -5,8 +5,10 @@
  */
 import type { Id } from '../db';
 import { CommandError, type CommandResult, type RestoreMode, type TrashKind } from '../messages';
+import { buildPlaceholderUrl } from '../placeholder';
 import type { BackgroundContext } from './context';
 import { closeTabs, requireGroup, restoreGroup, result, stowInDb } from './group-actions';
+import { discardPlaceholder } from './placeholder-icons';
 
 /** Moves the group to the trash; if it is on the tab strip, its tabs are closed afterwards. */
 export async function deleteGroup(ctx: BackgroundContext, groupId: Id): Promise<CommandResult> {
@@ -103,7 +105,7 @@ export async function restoreDeleted(
 
   let restored: CommandResult;
   if (kind === 'tab') {
-    restored = await restoreTab(ctx, id);
+    restored = await restoreTab(ctx, id, mode);
   } else {
     if (kind === 'space') await repos.spaces.restore(id);
     else await repos.groups.restore(id);
@@ -125,8 +127,13 @@ export async function restoreDeleted(
 /**
  * Restores a link to its group. If the group is on the tab strip, the link opens there as well:
  * a saved tab without an open tab in a mirrored group would go back to the trash at the next sync.
+ * Like «Вернуть», it waits unloaded as a placeholder unless `mode` is `background`.
  */
-async function restoreTab(ctx: BackgroundContext, id: Id): Promise<CommandResult> {
+async function restoreTab(
+  ctx: BackgroundContext,
+  id: Id,
+  mode: RestoreMode = 'placeholder',
+): Promise<CommandResult> {
   const { api, repos } = ctx;
   await repos.tabs.restore(id);
   const tab = await repos.tabs.get(id);
@@ -136,13 +143,16 @@ async function restoreTab(ctx: BackgroundContext, id: Id): Promise<CommandResult
   }
 
   try {
+    const placeholder = mode === 'placeholder';
     const chromeTab = await api.createTab({
       windowId: group.windowId,
-      url: tab.url,
+      url: placeholder ? buildPlaceholderUrl(api.placeholderPageUrl, tab) : tab.url,
       active: false,
     });
     await repos.tabs.update(tab.id, { chromeTabId: chromeTab.id });
     await api.addTabsToGroup([chromeTab.id], group.chromeGroupId);
+    // Not awaited: the link is back; the mirror follows the id that discarding may change.
+    if (placeholder) void discardPlaceholder(ctx, chromeTab.id);
     return result({ tabs: 1 });
   } catch {
     return result({ failed: 1 });

@@ -25,6 +25,8 @@ export interface SeedTab {
   pinned?: boolean;
   active?: boolean;
   discarded?: boolean;
+  /** False — Chrome shows no icon (an unloaded placeholder after a restart). */
+  hasIcon?: boolean;
 }
 
 export const FAKE_APP_PAGE_URL = 'chrome-extension://tabflow/app.html';
@@ -74,7 +76,7 @@ export class FakeTabsApi implements TabsApi {
       url: seed.url,
       committed: true,
       loaded: true,
-      hasIcon: true,
+      hasIcon: seed.hasIcon ?? true,
       title: seed.title ?? seed.url,
       pinned: seed.pinned ?? false,
       active: false,
@@ -171,8 +173,31 @@ export class FakeTabsApi implements TabsApi {
     for (const tab of this.tabs) {
       tab.id = this.nextTabId++;
       tab.discarded = !tab.active; // restored tabs load lazily
+      // Chrome 155: an unloaded placeholder shows no icon — the page itself sets it.
+      if (tab.discarded && parsePlaceholderUrl(this.placeholderPageUrl, tab.url)) {
+        tab.hasIcon = false;
+      }
       if (tab.groupId !== NO_GROUP) tab.groupId = groupIds.get(tab.groupId) ?? NO_GROUP;
     }
+  }
+
+  /**
+   * The extension was reloaded or updated: Chrome closes every page of the extension (placeholders,
+   * the main page) while TabFlow is not running — no events — and clears `storage.session`.
+   * Listeners are dropped, as the service worker starts from scratch.
+   */
+  reloadExtension(): void {
+    const extensionOrigin = new URL(this.appPageUrl).origin;
+    this.listeners = [];
+    this.sessionStarted = false;
+    const closing = this.tabs.filter((tab) => tab.url.startsWith(extensionOrigin));
+    this.tabs = this.tabs.filter((tab) => !closing.includes(tab));
+    for (const tab of closing.filter((t) => t.active)) {
+      const next = this.tabs.find((t) => t.windowId === tab.windowId);
+      if (next) this.setActive(next);
+    }
+    this.dropEmptyGroups();
+    this.windows = this.windows.filter((id) => this.tabs.some((tab) => tab.windowId === id));
   }
 
   /** Makes the next call of `method` throw. */
@@ -283,6 +308,19 @@ export class FakeTabsApi implements TabsApi {
     this.emit({ type: 'tabUpdated', tabId });
     this.dropEmptyGroups();
     this.dropEmptyWindows();
+  }
+
+  async reloadTab(tabId: number): Promise<void> {
+    this.maybeFail('reloadTab');
+    const record = this.require(tabId);
+    record.discarded = false;
+    record.loaded = false;
+    record.hasIcon = false;
+    this.emit({ type: 'tabUpdated', tabId });
+    setTimeout(() => {
+      record.loaded = true;
+      record.hasIcon = !this.iconsNeverLoad;
+    }, 0);
   }
 
   async removeTabs(tabIds: readonly number[]): Promise<void> {

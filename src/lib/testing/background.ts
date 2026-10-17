@@ -14,6 +14,8 @@ export interface BackgroundTestContext extends TestContext {
   settle(): Promise<void>;
   /** Simulates a browser restart: new ids in Chrome, a fresh service worker that starts up. */
   restartBrowser(): Promise<void>;
+  /** Simulates reloading the extension: Chrome closes its pages, a fresh service worker starts. */
+  reloadExtension(): Promise<void>;
 }
 
 /** A fake browser wired to a background with a fresh test database. */
@@ -35,6 +37,11 @@ export function setupBackground({ supportsGroups = true } = {}): BackgroundTestC
     settle: () => context.bg.idle(),
     async restartBrowser() {
       api.restart();
+      context.bg = wire();
+      await context.bg.start();
+    },
+    async reloadExtension() {
+      api.reloadExtension();
       context.bg = wire();
       await context.bg.start();
     },

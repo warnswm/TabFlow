@@ -85,6 +85,37 @@ export function buildTrashView(trash: TrashContents, liveGroups: readonly TabGro
   };
 }
 
+export interface TrashedTabsOfGroup {
+  groupId: Id;
+  groupTitle: string;
+  /** Newest first, as in the trash. */
+  tabs: TrashedTab[];
+  /** Ids in the group's own order — restored one by one, they keep it. */
+  restoreOrder: Id[];
+}
+
+/** Lone links of the trash by group, groups in the order of their newest link. */
+export function groupTrashedTabs(tabs: readonly TrashedTab[]): TrashedTabsOfGroup[] {
+  const byGroup = new Map<Id, TrashedTabsOfGroup>();
+  for (const tab of tabs) {
+    const { groupId } = tab.record;
+    const entry = byGroup.get(groupId) ?? {
+      groupId,
+      groupTitle: tab.groupTitle,
+      tabs: [],
+      restoreOrder: [],
+    };
+    entry.tabs.push(tab);
+    byGroup.set(groupId, entry);
+  }
+  for (const entry of byGroup.values()) {
+    entry.restoreOrder = [...entry.tabs]
+      .sort((a, b) => a.record.order - b.record.order)
+      .map((tab) => tab.record.id);
+  }
+  return [...byGroup.values()];
+}
+
 export async function loadTrashView(repos: Repositories): Promise<TrashView> {
   const [trash, liveGroups] = await Promise.all([repos.trash.list(), repos.groups.listAll()]);
   return buildTrashView(trash, liveGroups);

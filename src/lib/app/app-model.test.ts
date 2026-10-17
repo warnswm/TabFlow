@@ -5,7 +5,7 @@ import type { CommandResult } from '../messages';
 import { buildOverview, displayHost } from './overview';
 import { parseRoute, routeHash } from './route';
 import { daysLeft, DAY_MS, shortDate, timeAgo } from './time-format';
-import { buildTrashView } from './trash-view';
+import { buildTrashView, groupTrashedTabs } from './trash-view';
 import { undoCommands } from './undo';
 import { youtubeThumbnailUrl, youtubeVideoId } from './youtube';
 
@@ -79,6 +79,33 @@ describe('overview', () => {
   it('shows hosts without www', () => {
     expect(displayHost('https://www.youtube.com/watch?v=1')).toBe('youtube.com');
     expect(displayHost('file:///C:/notes.txt')).toBe('файл');
+  });
+});
+
+describe('trashed links by group', () => {
+  it('groups lone links and restores them in the group order', () => {
+    const trash = {
+      spaces: [],
+      groups: [],
+      tabs: [
+        tab('b3', 'study', { order: 3, deletedAt: T0 }),
+        tab('s1', 'shop', { order: 1, deletedAt: T0 - 1 }),
+        tab('b1', 'study', { order: 1, deletedAt: T0 - 2 }),
+        tab('b2', 'study', { order: 2, deletedAt: T0 - 3 }),
+      ],
+      queue: [],
+    };
+    const view = buildTrashView(trash, [
+      group('study', 'inbox', { title: 'Учёба' }),
+      group('shop', 'inbox', { title: 'Покупки' }),
+    ]);
+
+    const groups = groupTrashedTabs(view.tabs);
+
+    expect(groups.map((g) => [g.groupTitle, g.tabs.length, g.restoreOrder])).toEqual([
+      ['Учёба', 3, ['b1', 'b2', 'b3']],
+      ['Покупки', 1, ['s1']],
+    ]);
   });
 });
 

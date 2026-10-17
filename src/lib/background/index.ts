@@ -15,6 +15,13 @@ import type { BackgroundContext } from './context';
 import { editGroup, openTab, restoreGroup, sleepGroup, stowGroup } from './group-actions';
 import { handleTabsEvent, reconcileAll } from './mirror';
 import { moveTab } from './move-tab';
+import {
+  createIconRefresher,
+  discardPlaceholder,
+  ICON_REFRESH_WINDOW_MS,
+  needsIconRefresh,
+  reopenMissingLinks,
+} from './placeholder-icons';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 
@@ -62,14 +69,35 @@ function logError(what: string, error: unknown): void {
 
 export function createBackground(ctx: BackgroundContext): Background {
   const queue = createSerialQueue();
+  const icons = createIconRefresher(ctx);
+  /** Until when tabs Chrome restores in a new browser session get their placeholder icon back. */
+  let refreshIconsUntil = 0;
+  /** Tabs opened while a command ran: TabFlow's own, they already have their icon. */
+  const ownTabs = new Set<number>();
+  let commandRunning = false;
 
   return {
     start() {
       return queue.run(async () => {
         try {
           const idsAreStale = await ctx.api.isFirstRunInSession();
-          await reconcileAll(ctx, { idsAreStale });
-          if (idsAreStale) await ctx.repos.trash.purgeExpired();
+          // The extension was reloaded or updated: Chrome closed its placeholders meanwhile.
+          const reopened: number[] = [];
+          await reconcileAll(ctx, {
+            idsAreStale,
+            reopenMissing: idsAreStale
+              ? async (mirror, chromeGroup) => {
+                  reopened.push(...(await reopenMissingLinks(ctx, mirror.id, chromeGroup.id)));
+                }
+              : undefined,
+          });
+          if (idsAreStale) {
+            await ctx.repos.trash.purgeExpired();
+            refreshIconsUntil = ctx.clock() + ICON_REFRESH_WINDOW_MS;
+            // Not awaited: loading and discarding takes a moment and must not hold the queue.
+            for (const tabId of reopened) void discardPlaceholder(ctx, tabId);
+            void icons.refreshAll(new Set(reopened));
+          }
         } catch (error) {
           logError('start', error);
         }
@@ -77,9 +105,18 @@ export function createBackground(ctx: BackgroundContext): Background {
     },
 
     handleEvent(event) {
+      const watchIcons = event.type === 'tabCreated' && ctx.clock() < refreshIconsUntil;
+      if (watchIcons && commandRunning) ownTabs.add(event.tabId);
       return queue.run(async () => {
         try {
           await handleTabsEvent(ctx, event);
+          if (watchIcons && !ownTabs.delete(event.tabId)) {
+            // A tab Chrome restored unloaded: a placeholder without its icon.
+            const tab = await ctx.api.getTab(event.tabId);
+            if (tab && needsIconRefresh(tab) && tab.discarded && !tab.hasIcon) {
+              void icons.refresh(tab.id);
+            }
+          }
         } catch (error) {
           logError(`event ${event.type}`, error);
         }
@@ -91,7 +128,15 @@ export function createBackground(ctx: BackgroundContext): Background {
         return { ok: false, code: 'invalid-command', message: 'Unknown command' };
       }
       try {
-        return { ok: true, result: await queue.run(() => runCommand(ctx, message)) };
+        const result = await queue.run(async () => {
+          commandRunning = true;
+          try {
+            return await runCommand(ctx, message);
+          } finally {
+            commandRunning = false;
+          }
+        });
+        return { ok: true, result };
       } catch (error) {
         if (error instanceof CommandError) {
           return { ok: false, code: error.code, message: error.message };
