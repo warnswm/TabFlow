@@ -9,7 +9,7 @@ import { applyOrder, moveId } from '@/lib/app/reorder';
 import { matchesByGroup, type SearchIndex } from '@/lib/app/search';
 import { count, GROUPS, TABS } from '@/lib/command-messages';
 import { type Id, repositories } from '@/lib/db';
-import { runCommand } from '../commands';
+import { arrangeTabStrip, runCommand } from '../commands';
 import { dragData } from '../dnd';
 import { useNow } from '../hooks';
 import { useUi } from '../store';
@@ -81,10 +81,12 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
         target.group.id,
       );
       setDropped({ base: groups, ids });
-      repositories.groups.place(moved.group.id, space.id, ids.indexOf(moved.group.id)).catch(() => {
-        setDropped(undefined);
-        useUi.getState().showToast('Порядок не сохранён — группы остались на своих местах.');
-      });
+      repositories.groups
+        .place(moved.group.id, space.id, ids.indexOf(moved.group.id))
+        .then(arrangeTabStrip, () => {
+          setDropped(undefined);
+          useUi.getState().showToast('Порядок не сохранён — группы остались на своих местах.');
+        });
     },
   });
 

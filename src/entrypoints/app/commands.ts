@@ -43,8 +43,17 @@ export async function runCommand(
 }
 
 /**
+ * After the page changed the order of tiles or spaces: the groups on the tab strip follow it.
+ * Cosmetic — nothing to report when the background does not answer.
+ */
+export function arrangeTabStrip(): void {
+  sendCommand({ type: 'arrangeGroups' }).catch(() => undefined);
+}
+
+/**
  * Moves a group to another space (menu «Перенести в», a tile dropped on a space).
- * Pure database change: the group stays where it is in Chrome. Undo puts it back to its place.
+ * A database change; on the tab strip the group only takes its place by the new order.
+ * Undo puts it back to its place.
  */
 export async function moveGroupToSpace(group: TabGroup, space: Space): Promise<void> {
   const { showToast } = useUi.getState();
@@ -52,10 +61,14 @@ export async function moveGroupToSpace(group: TabGroup, space: Space): Promise<v
   try {
     const index = (await repositories.groups.listBySpace(from)).findIndex((g) => g.id === group.id);
     await repositories.groups.move(group.id, space.id);
+    arrangeTabStrip();
     showToast(`Группа «${group.title || UNTITLED}» перенесена в «${space.name}».`, () => {
       repositories.groups
         .place(group.id, from, Math.max(index, 0))
-        .then(() => showToast('Отменено.'))
+        .then(() => {
+          arrangeTabStrip();
+          showToast('Отменено.');
+        })
         .catch(() =>
           showToast(`Группа осталась в «${space.name}» — исходного пространства уже нет.`),
         );

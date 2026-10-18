@@ -8,7 +8,7 @@
  */
 export interface SerialQueue {
   run<T>(task: () => Promise<T>): Promise<T>;
-  /** Resolves when every task added so far has finished. */
+  /** Resolves when the queue is empty — tasks added by running tasks are waited for too. */
   idle(): Promise<void>;
 }
 
@@ -23,7 +23,11 @@ export function createSerialQueue(): SerialQueue {
       return result;
     },
     async idle() {
-      await tail;
+      let seen: Promise<unknown>;
+      do {
+        seen = tail;
+        await seen;
+      } while (seen !== tail);
     },
   };
 }

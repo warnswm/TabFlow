@@ -122,6 +122,16 @@ export async function grantedSitePatterns(): Promise<string[]> {
   return (await browser.permissions.getAll()).origins ?? [];
 }
 
+/** Takes back access to sites (settings page); resolves `false` when Chrome refused. */
+export async function removeSiteAccess(patterns: readonly string[]): Promise<boolean> {
+  try {
+    return await browser.permissions.remove({ origins: [...patterns] });
+  } catch (error) {
+    console.info('[TabFlow] Site access not removed:', error);
+    return false;
+  }
+}
+
 /** Calls back when site access is allowed (`added`) or taken back. */
 export function onSiteAccessChanged(callback: (added: string[]) => void): void {
   browser.permissions.onAdded.addListener(({ origins }) => callback(origins ?? []));
@@ -401,6 +411,28 @@ export async function getHotkey(name: string): Promise<string> {
   return commands.find((command) => command.name === name)?.shortcut ?? '';
 }
 
+/** Every shortcut of TabFlow with its key in Chrome now (empty — none). */
+export async function getHotkeys(): Promise<{ name: string; shortcut: string }[]> {
+  return (await browser.commands.getAll()).flatMap(({ name, shortcut }) =>
+    name ? [{ name, shortcut: shortcut ?? '' }] : [],
+  );
+}
+
+/** Opens a page of the browser itself (`chrome://extensions/shortcuts`) in a new tab. */
+export async function openBrowserPage(url: string): Promise<void> {
+  await browser.tabs.create({ url });
+}
+
+/** The settings page (the options page of the extension leads to `app.html#/settings`). */
+export async function openSettingsPage(): Promise<void> {
+  await browser.runtime.openOptionsPage();
+}
+
+/** Version of the installed extension (from the manifest). */
+export function extensionVersion(): string {
+  return browser.runtime.getManifest().version;
+}
+
 /** What the popup needs to know about the open tabs. */
 export interface OpenTabsInfo {
   /** Open tabs in all windows. */
@@ -501,6 +533,8 @@ export type TabsEvent =
   /** The tab was swapped for another one (prerendering, discarding). */
   | { type: 'tabReplaced'; addedTabId: number; removedTabId: number }
   | { type: 'groupChanged'; groupId: number }
+  /** The group moved on the tab strip — dragged by the user or moved by TabFlow. */
+  | { type: 'groupMoved'; groupId: number }
   | { type: 'groupRemoved'; groupId: number }
   | { type: 'windowRemoved'; windowId: number };
 
@@ -542,6 +576,8 @@ export interface TabsApi {
   queryGroups(filter: { windowId?: number }): Promise<BrowserGroup[]>;
   getGroup(groupId: number): Promise<BrowserGroup | undefined>;
   updateGroup(groupId: number, update: GroupUpdate): Promise<void>;
+  /** Moves the whole native group within its window: its first tab lands at `index`. */
+  moveGroup(groupId: number, index: number): Promise<void>;
 
   /**
    * Asks the content script of the tab's video page to report the video now (duration, position).
@@ -715,6 +751,10 @@ export function createBrowserTabsApi(): TabsApi {
       await requireGroups().update(groupId, update);
     },
 
+    async moveGroup(groupId, index) {
+      await requireGroups().move(groupId, { index });
+    },
+
     async requestVideoReport(tabId) {
       try {
         await browser.tabs.sendMessage(tabId, VIDEO_REPORT_REQUEST);
@@ -748,7 +788,9 @@ export function createBrowserTabsApi(): TabsApi {
           listener({ type: 'groupChanged', groupId: group.id });
         tabGroups.onCreated.addListener(changed);
         tabGroups.onUpdated.addListener(changed);
-        tabGroups.onMoved.addListener(changed);
+        tabGroups.onMoved.addListener((group) =>
+          listener({ type: 'groupMoved', groupId: group.id }),
+        );
         tabGroups.onRemoved.addListener((group) =>
           listener({ type: 'groupRemoved', groupId: group.id }),
         );

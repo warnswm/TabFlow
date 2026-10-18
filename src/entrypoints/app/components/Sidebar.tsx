@@ -2,7 +2,6 @@ import { useDndContext, useDndMonitor, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CornerDownLeft, Folder, Inbox, Plus, Settings, Trash } from 'lucide-react';
-import { DropdownMenu } from 'radix-ui';
 import { type CSSProperties, type HTMLAttributes, useState } from 'react';
 import type { Overview, SpaceView } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
@@ -10,23 +9,15 @@ import type { Route } from '@/lib/app/route';
 import { routeHash } from '@/lib/app/route';
 import { count, GROUPS, plural, TABS } from '@/lib/command-messages';
 import { type Id, repositories } from '@/lib/db';
-import type { RestoreMode } from '@/lib/messages';
-import { BADGE_MODE_LABEL, type BadgeMode } from '@/lib/summary';
-import { moveGroupToSpace } from '../commands';
+import { arrangeTabStrip, moveGroupToSpace } from '../commands';
 import { type DragData, dragData, ZONE_ID } from '../dnd';
 import { useUi } from '../store';
-import { MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR } from '../ui';
 import { SpaceNameDialog } from './SpaceDialogs';
 
 const NAV_ITEM =
   'flex h-9 items-center gap-2.5 rounded-md px-2 text-fg transition-colors duration-(--duration-fast) hover:bg-surface-raised [&_svg]:size-4 [&_svg]:shrink-0';
 const NAV_ITEM_CURRENT =
   'flex h-9 items-center gap-2.5 rounded-md bg-accent-soft px-2 font-semibold text-accent [&_svg]:size-4 [&_svg]:shrink-0';
-
-const RESTORE_MODE_LABEL: Record<RestoreMode, string> = {
-  placeholder: 'Заглушки TabFlow — сайты не грузятся',
-  background: 'Сайты, выгрузка в фоне',
-};
 
 const SIDEBAR_ZONE: DragData = { type: 'zone', zone: 'sidebar' };
 const SPACES_ZONE: DragData = { type: 'zone', zone: 'spaces' };
@@ -70,10 +61,14 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
         ? [moved.space.id, ...ids.filter((id) => id !== moved.space.id)]
         : moveId(ids, moved.space.id, target.space.id);
       setDropped({ base: overview.spaces, ids: next });
-      repositories.spaces.place(moved.space.id, next.indexOf(moved.space.id)).catch(() => {
-        setDropped(undefined);
-        useUi.getState().showToast('Порядок не сохранён — пространства остались на своих местах.');
-      });
+      repositories.spaces
+        .place(moved.space.id, next.indexOf(moved.space.id))
+        .then(arrangeTabStrip, () => {
+          setDropped(undefined);
+          useUi
+            .getState()
+            .showToast('Порядок не сохранён — пространства остались на своих местах.');
+        });
     },
   });
 
@@ -186,7 +181,14 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
             {plural(groupsByState.stowed, ['убрана', 'убраны', 'убраны'])}
           </span>
         </section>
-        <SettingsMenu />
+        <a
+          href={routeHash({ view: 'settings' })}
+          aria-current={route.view === 'settings' ? 'page' : undefined}
+          className={route.view === 'settings' ? NAV_ITEM_CURRENT : `${NAV_ITEM} text-fg-muted`}
+        >
+          <Settings aria-hidden />
+          Настройки
+        </a>
       </div>
 
       <SpaceNameDialog open={creating} onOpenChange={setCreating} />
@@ -310,67 +312,5 @@ export function SpaceGhost({ view }: { view: SpaceView }) {
       <span className="min-w-0 truncate">{view.space.name}</span>
       <span className="ml-auto font-mono text-xs text-fg-muted">{view.tabCount}</span>
     </div>
-  );
-}
-
-/** Until the settings page (stage 7): how stowed groups come back, what the badge counts. */
-function SettingsMenu() {
-  const restoreMode = useUi((state) => state.restoreMode);
-  const setRestoreMode = useUi((state) => state.setRestoreMode);
-  const badgeMode = useUi((state) => state.badgeMode);
-  const setBadgeMode = useUi((state) => state.setBadgeMode);
-
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger className={`${NAV_ITEM} text-fg-muted`}>
-        <Settings aria-hidden />
-        Настройки
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content side="top" align="start" sideOffset={4} className={MENU_CONTENT}>
-          <DropdownMenu.Label className="px-2 py-1.5 text-xs text-fg-subtle">
-            Как возвращать группу
-          </DropdownMenu.Label>
-          <DropdownMenu.RadioGroup
-            value={restoreMode}
-            onValueChange={(value) => setRestoreMode(value as RestoreMode)}
-          >
-            {(Object.keys(RESTORE_MODE_LABEL) as RestoreMode[]).map((mode) => (
-              <DropdownMenu.RadioItem
-                key={mode}
-                value={mode}
-                className={`${MENU_ITEM} pl-7 relative`}
-              >
-                <DropdownMenu.ItemIndicator className="absolute left-2 flex">
-                  <span aria-hidden className="size-2 rounded-full bg-current" />
-                </DropdownMenu.ItemIndicator>
-                {RESTORE_MODE_LABEL[mode]}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
-          <DropdownMenu.Separator className={MENU_SEPARATOR} />
-          <DropdownMenu.Label className="px-2 py-1.5 text-xs text-fg-subtle">
-            Число на значке TabFlow
-          </DropdownMenu.Label>
-          <DropdownMenu.RadioGroup
-            value={badgeMode}
-            onValueChange={(value) => setBadgeMode(value as BadgeMode)}
-          >
-            {(Object.keys(BADGE_MODE_LABEL) as BadgeMode[]).map((mode) => (
-              <DropdownMenu.RadioItem
-                key={mode}
-                value={mode}
-                className={`${MENU_ITEM} pl-7 relative`}
-              >
-                <DropdownMenu.ItemIndicator className="absolute left-2 flex">
-                  <span aria-hidden className="size-2 rounded-full bg-current" />
-                </DropdownMenu.ItemIndicator>
-                {BADGE_MODE_LABEL[mode]}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
   );
 }

@@ -2,7 +2,7 @@
  * Texts for command results, in the brand voice: fact → consequence, no address, no exclamations,
  * always say that nothing is lost. RU only for now; EN comes with i18n.
  */
-import type { CommandResponse, CommandType, QueuedVideo } from './messages';
+import type { CommandResponse, CommandType, ImportReport, QueuedVideo } from './messages';
 
 /** Russian plural: 1 вкладка, 2 вкладки, 5 вкладок. */
 export function plural(n: number, [one, few, many]: readonly [string, string, string]): string {
@@ -54,6 +54,8 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
         return 'В очередь попадают только сайты и файлы — служебные страницы браузера остаются как есть.';
       case 'video-not-found':
         return 'Видео не найдено — возможно, оно уже удалено из очереди.';
+      case 'invalid-backup':
+        return describeBackupError(response.message);
       default:
         return 'Действие не выполнено. Вкладки и ссылки остались на месте.';
     }
@@ -118,6 +120,12 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
       return tabs === 0
         ? 'Ссылки открыты рядом.'
         : `Ссылки открыты рядом. ${count(tabs, TABS)} на панели ${plural(tabs, ['уснула', 'уснули', 'уснули'])} — остались на месте.`;
+    case 'arrangeGroups':
+      return 'Группы на панели стоят в порядке TabFlow.';
+    case 'importBackup':
+      return describeImport(response.result.imported);
+    case 'undoImport':
+      return failed > 0 ? `Импорт отменён. Не вернулось из корзины: ${failed}.` : 'Импорт отменён.';
     case 'queueTab':
     case 'queueLink':
     case 'openVideo':
@@ -128,6 +136,39 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
     case 'videoProgress':
       return describeVideo(type, response.result.video);
   }
+}
+
+const VIDEOS: [string, string, string] = ['видео', 'видео', 'видео'];
+const LINKS: [string, string, string] = ['ссылка', 'ссылки', 'ссылок'];
+const LAYOUTS: [string, string, string] = ['раскладка', 'раскладки', 'раскладок'];
+
+/** Why a file is not a TabFlow backup (`BackupError` codes). */
+export function describeBackupError(code: string): string {
+  switch (code) {
+    case 'not-json':
+      return 'Файл не прочитан — это не копия TabFlow. Данные TabFlow не изменились.';
+    case 'newer-version':
+      return 'Копия сделана более новой версией TabFlow — её прочитает только обновлённое расширение. Данные TabFlow не изменились.';
+    default:
+      return 'В файле нет копии TabFlow. Данные TabFlow не изменились.';
+  }
+}
+
+function describeImport(imported: ImportReport | undefined): string {
+  if (!imported) return 'Импорт завершён.';
+  const { groups, tabs, videos, layouts, skipped, replaced } = imported;
+  const parts = [
+    groups > 0 && `${count(groups, GROUPS)} · ${count(tabs, LINKS)}`,
+    videos > 0 && count(videos, VIDEOS),
+    layouts > 0 && count(layouts, LAYOUTS),
+  ].filter(Boolean);
+  const added =
+    parts.length === 0
+      ? 'Новых данных в копии нет.'
+      : `Импортировано: ${parts.join(' · ')}.${groups > 0 ? ' Группы убраны в TabFlow.' : ''}`;
+  const skippedNote = skipped > 0 ? ` Уже были в TabFlow: ${skipped}.` : '';
+  const replacedNote = replaced ? ' Прежние данные — в корзине на 30 дней.' : '';
+  return `${added}${skippedNote}${replacedNote}`;
 }
 
 function describeVideo(type: CommandType, video: QueuedVideo | undefined): string {

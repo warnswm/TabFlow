@@ -10,6 +10,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { GroupDragChip } from './components/GroupTile';
 import { Sidebar, SpaceGhost } from './components/Sidebar';
 import { SpaceView } from './components/SpaceView';
+import { SettingsView } from './components/SettingsView';
 import { SideBySideView } from './components/SideBySideView';
 import { TileDialog } from './components/TileDialog';
 import { Toaster } from './components/Toaster';
@@ -49,7 +50,8 @@ export default function App() {
   const spaceView =
     (route.view === 'space' && overview?.spaces.find((view) => view.space.id === route.spaceId)) ||
     overview?.spaces[0];
-  const shownSpaceId = route.view === 'trash' ? 'trash' : spaceView?.space.id;
+  const shownSpaceId =
+    route.view === 'trash' || route.view === 'settings' ? route.view : spaceView?.space.id;
 
   useEffect(() => {
     // «Входящие» always exists, even before the first collapse.
@@ -114,6 +116,8 @@ export default function App() {
           <main className="min-w-0 flex-1 px-8 pt-6 pb-12">
             {route.view === 'trash' ? (
               <TrashView />
+            ) : route.view === 'settings' ? (
+              <SettingsView overview={overview} />
             ) : (
               spaceView && (
                 <SpaceView

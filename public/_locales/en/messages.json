@@ -1,0 +1,13 @@
+{
+  "extName": {
+    "message": "TabFlow — tab manager",
+    "description": "Extension name in Chrome and in the store."
+  },
+  "extShortName": {
+    "message": "TabFlow"
+  },
+  "extDescription": {
+    "message": "Collapse tabs into groups in one click and free up memory. Groups as tiles, a watch-later video queue. Everything in sight.",
+    "description": "Short description (up to 132 characters)."
+  }
+}

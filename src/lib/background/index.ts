@@ -10,12 +10,15 @@ import {
   type CommandResult,
   isCommand,
 } from '../messages';
+import { arrangeAllWindows } from './arrange';
+import { importBackup, undoImport } from './backup-actions';
 import { collapseAll } from './collapse';
 import type { BackgroundContext } from './context';
 import {
   editGroup,
   openTab,
   restoreGroup,
+  result,
   sleepGroup,
   sleepLinks,
   stowGroup,
@@ -48,6 +51,7 @@ import {
   setWatched,
   videoProgress,
 } from './queue-actions';
+import { reviveFromChrome } from './revive';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 import { createUiRefresher } from './ui-refresh';
@@ -135,6 +139,12 @@ function runCommand(
       return restoreVideo(ctx, command.itemId);
     case 'sleepLinks':
       return sleepLinks(ctx, command.tabIds, command.chromeTabIds);
+    case 'arrangeGroups':
+      return arrangeAllWindows(ctx).then((groups) => result({ groups }));
+    case 'importBackup':
+      return importBackup(ctx, command.backup, command.replace);
+    case 'undoImport':
+      return undoImport(ctx, command.undo, command.mode);
     case 'videoProgress':
       if (origin.kind !== 'content') throw new CommandError('invalid-command', 'Not from a page');
       return videoProgress(ctx, origin.tabId, command);
@@ -157,11 +167,18 @@ export function createBackground(ctx: BackgroundContext): Background {
   // The badge and the menu follow the database: one refresh after a burst of queued work.
   const refreshUi = createUiRefresher(ctx);
   let uiRefreshQueued = false;
+  /** Work queued and not finished yet; the queue runs one item at a time. */
+  let pendingWork = 0;
   function queueUiRefresh(): void {
     if (uiRefreshQueued) return;
     uiRefreshQueued = true;
     void queue.run(async () => {
       uiRefreshQueued = false;
+      // Work queued after this refresh would not be shown: refresh once more after it instead.
+      if (pendingWork > 0) {
+        queueUiRefresh();
+        return;
+      }
       try {
         await refreshUi();
       } catch (error) {
@@ -171,7 +188,14 @@ export function createBackground(ctx: BackgroundContext): Background {
   }
   /** Queues work and the refresh of the badge and the menu after it. */
   function run<T>(work: () => Promise<T>): Promise<T> {
-    const done = queue.run(work);
+    pendingWork++;
+    const done = queue.run(async () => {
+      try {
+        return await work();
+      } finally {
+        pendingWork--;
+      }
+    });
     queueUiRefresh();
     return done;
   }
@@ -182,20 +206,19 @@ export function createBackground(ctx: BackgroundContext): Background {
         try {
           const idsAreStale = await ctx.api.isFirstRunInSession();
           // The extension was reloaded or updated: Chrome closed its placeholders meanwhile.
+          // A stowed group opened from Chrome's saved groups meanwhile: links Chrome lacks open too.
           const reopened: number[] = [];
           await reconcileAll(ctx, {
             idsAreStale,
-            reopenMissing: idsAreStale
-              ? async (mirror, chromeGroup) => {
-                  reopened.push(...(await reopenMissingLinks(ctx, mirror.id, chromeGroup.id)));
-                }
-              : undefined,
+            reopenMissing: async (mirror, chromeGroup) => {
+              reopened.push(...(await reopenMissingLinks(ctx, mirror.id, chromeGroup.id)));
+            },
           });
+          // Not awaited: loading and discarding takes a moment and must not hold the queue.
+          for (const tabId of reopened) void discardPlaceholder(ctx, tabId);
           if (idsAreStale) {
             await ctx.repos.trash.purgeExpired();
             refreshIconsUntil = ctx.clock() + ICON_REFRESH_WINDOW_MS;
-            // Not awaited: loading and discarding takes a moment and must not hold the queue.
-            for (const tabId of reopened) void discardPlaceholder(ctx, tabId);
             void icons.refreshAll(new Set(reopened));
           }
         } catch (error) {
@@ -209,6 +232,7 @@ export function createBackground(ctx: BackgroundContext): Background {
       if (watchIcons && commandRunning) ownTabs.add(event.tabId);
       return run(async () => {
         try {
+          await reviveFromChrome(ctx, event);
           await handleTabsEvent(ctx, event);
           if (watchIcons && !ownTabs.delete(event.tabId)) {
             // A tab Chrome restored unloaded: a placeholder without its icon.

@@ -6,6 +6,7 @@ import type { BrowserTab, GroupUpdate } from '../browser-api';
 import type { GroupColor, Id, TabGroup } from '../db';
 import { CommandError, type CommandResult, type RestoreMode } from '../messages';
 import { buildPlaceholderUrl } from '../placeholder';
+import { arrangeGroups } from './arrange';
 import type { BackgroundContext } from './context';
 import { syncGroup } from './mirror';
 import { isSaveableTab, isSaveableUrl, splitDuplicates } from './tab-rules';
@@ -177,8 +178,8 @@ export async function closeTabs(
 }
 
 /**
- * Opens the group again as a native group with the same title and color, in the current window.
- * Only the first tab loads; how the others wait depends on `mode`:
+ * Opens the group again as a native group with the same title and color, in the current window,
+ * at its place by TabFlow order among the other groups (`arrangeGroups`). Only the first tab loads; how the others wait depends on `mode`:
  * - `placeholder` — they open a local TabFlow page with the real title and icon, which is
  *   discarded at once and goes to the site when the tab is opened: no site loads at all;
  * - `background` — they open the sites and are discarded in the background once each URL is
@@ -274,6 +275,7 @@ export async function restoreGroup(
   const failed = saved.length - linked.length;
   if (chromeGroupId !== undefined) {
     await repos.groups.linkToChrome(group.id, { chromeGroupId, windowId, tabs: linked });
+    await arrangeGroups(ctx, windowId);
   }
 
   // Not awaited: the group is already back; the mirror follows the ids that discarding changes.

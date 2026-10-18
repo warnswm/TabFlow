@@ -10,10 +10,12 @@
  * - a saved link is never changed or dropped because its tab shows a browser page (`about:blank`);
  * - a group closed in Chrome (or with its window) becomes stowed with all its links;
  * - a group dissolved in Chrome (tabs ungrouped, still open) is forgotten;
- * - a group is asleep when all its saved tabs are discarded.
+ * - a group is asleep when all its saved tabs are discarded;
+ * - a group moved on the tab strip moves its tile within its space (`followStrip`).
  */
 import { type BrowserGroup, type BrowserTab, NO_GROUP, type TabsEvent } from '../browser-api';
 import type { SavedTab, TabGroup } from '../db';
+import { arrangeGroups, followStrip } from './arrange';
 import type { BackgroundContext } from './context';
 import { isSaveableTab, normalizeUrl } from './tab-rules';
 
@@ -209,6 +211,11 @@ export async function handleTabsEvent(ctx: BackgroundContext, event: TabsEvent):
     case 'groupRemoved':
       await syncGroup(ctx, event.groupId);
       break;
+    case 'groupMoved': {
+      const mirror = await syncGroup(ctx, event.groupId);
+      if (mirror?.windowId !== undefined) await followStrip(ctx, mirror.windowId);
+      break;
+    }
     case 'tabCreated':
     case 'tabUpdated':
       await syncTab(ctx, event.tabId);
@@ -240,8 +247,10 @@ export async function handleTabsEvent(ctx: BackgroundContext, event: TabsEvent):
  * groups restored by Chrome are matched to mirrors by title, color and URLs. Groups that were
  * stowed when their window closed come back to the strip this way instead of being duplicated.
  * Mirrors left without a native group become stowed; new native groups get a mirror.
- * `reopenMissing` runs for every matched group before it is synced: links whose tabs are gone
- * can be opened again there instead of going to the trash.
+ * In the same session a matched stowed group was opened from Chrome's saved groups while the
+ * worker slept (see `revive.ts`): it takes its place on the strip by TabFlow order.
+ * `reopenMissing` runs before syncing for every matched group in a new session and for revived
+ * stowed groups: links whose tabs are gone can be opened again there instead of going to the trash.
  */
 export async function reconcileAll(
   ctx: BackgroundContext,
@@ -271,10 +280,12 @@ export async function reconcileAll(
   const candidates = (await repos.groups.listAll()).filter(
     (group) => group.chromeGroupId === undefined,
   );
+  const revived = new Set<string>();
   for (const chromeGroup of unknown) {
     const match = await findMatch(ctx, chromeGroup, candidates);
     if (match) {
       candidates.splice(candidates.indexOf(match), 1);
+      if (match.state === 'stowed') revived.add(match.id);
       await repos.groups.update(match.id, {
         chromeGroupId: chromeGroup.id,
         windowId: chromeGroup.windowId,
@@ -285,7 +296,9 @@ export async function reconcileAll(
   if (reopenMissing) {
     for (const chromeGroup of chromeGroups) {
       const mirror = await repos.groups.findByChromeGroupId(chromeGroup.id);
-      if (mirror) await reopenMissing(mirror, chromeGroup);
+      if (mirror && (idsAreStale || revived.has(mirror.id))) {
+        await reopenMissing(mirror, chromeGroup);
+      }
     }
   }
 
@@ -298,6 +311,16 @@ export async function reconcileAll(
     if (group.chromeGroupId === undefined) await repos.groups.setState(group.id, 'stowed');
     else if (!present.has(group.chromeGroupId)) await syncGroup(ctx, group.chromeGroupId);
   }
+
+  // After a browser restart Chrome brings the strip back as it was: it is left alone.
+  if (!idsAreStale) {
+    const windows = new Set<number>();
+    for (const id of revived) {
+      const windowId = (await repos.groups.get(id))?.windowId;
+      if (windowId !== undefined) windows.add(windowId);
+    }
+    for (const windowId of windows) await arrangeGroups(ctx, windowId);
+  }
 }
 
 /**
@@ -305,7 +328,7 @@ export async function reconcileAll(
  * Groups still on the strip win over stowed ones; a stowed group needs at least half of the URLs
  * in common, so a group stowed on purpose is not revived by a look-alike.
  */
-async function findMatch(
+export async function findMatch(
   ctx: BackgroundContext,
   chromeGroup: BrowserGroup,
   candidates: readonly TabGroup[],

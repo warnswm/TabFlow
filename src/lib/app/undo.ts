@@ -61,6 +61,10 @@ export function undoCommands(
         { type: 'moveVideo', itemId: command.itemId, index: was - 1 },
       ];
     }
+    case 'importBackup':
+      return result.imported
+        ? [{ type: 'undoImport', undo: result.imported.undo, mode }]
+        : undefined;
     default:
       // Sleep is undone by «Разбудить»; restoring, editing and opening need no undo.
       return undefined;

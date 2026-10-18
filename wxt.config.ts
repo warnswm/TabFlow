@@ -12,8 +12,11 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifest: {
-    name: 'TabFlow',
-    description: 'Менеджер вкладок: группы на виду, но не в памяти.',
+    // Название и описание — из public/_locales (ru по умолчанию, en); интерфейс пока только RU.
+    name: '__MSG_extName__',
+    short_name: '__MSG_extShortName__',
+    description: '__MSG_extDescription__',
+    default_locale: 'ru',
     // tabs — адреса и заголовки вкладок; tabGroups — нативные группы; storage — метка сессии браузера;
     // favicon — иконки сайтов из кэша Chrome (заглушки, плитки); contextMenus — меню «TabFlow ▸»;
     // sidePanel — очередь в боковой панели; scripting — content script видеосайтов;

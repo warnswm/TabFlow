@@ -239,6 +239,8 @@ describe('route', () => {
   it('reads and writes the hash', () => {
     expect(parseRoute('')).toEqual({ view: 'space' });
     expect(parseRoute('#/trash')).toEqual({ view: 'trash' });
+    expect(parseRoute('#/settings')).toEqual({ view: 'settings' });
+    expect(routeHash({ view: 'settings' })).toBe('#/settings');
     expect(parseRoute('#/space/a%2Fb')).toEqual({ view: 'space', spaceId: 'a/b' });
     expect(routeHash({ view: 'space', spaceId: 'a/b' })).toBe('#/space/a%2Fb');
     expect(routeHash({ view: 'space' })).toBe('#/');

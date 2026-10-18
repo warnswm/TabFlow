@@ -3,6 +3,7 @@
  * Pages read the database directly; anything that touches Chrome tabs goes through these commands,
  * so the background runs it in one queue with the browser events.
  */
+import type { Backup } from './backup/format';
 import { sendRuntimeMessage } from './browser-api';
 import { GROUP_COLORS, type GroupColor, type Id } from './db/models';
 import { MAX_TILES } from './tiling/layout';
@@ -80,6 +81,18 @@ export type Command =
    */
   | { type: 'sleepLinks'; tabIds: Id[]; chromeTabIds?: number[] }
   /**
+   * Puts the native groups of every window in TabFlow order (spaces, then tiles) — after the page
+   * changed the order of tiles or spaces, or moved a group to another space.
+   */
+  | { type: 'arrangeGroups' }
+  /**
+   * Adds a backup file (see `backup/format.ts`): groups come stowed, what is already there stays.
+   * `replace` — spaces, groups and the queue go to the trash first (open groups are closed).
+   */
+  | { type: 'importBackup'; backup: Backup; replace: boolean }
+  /** Undo of an import: the added records go, the replaced ones come back from the trash. */
+  | { type: 'undoImport'; undo: ImportUndo; mode?: RestoreMode }
+  /**
    * From the content script of a video page: duration and position of its video. Only accepted
    * from content scripts — the background takes the page from the sender tab.
    */
@@ -101,8 +114,8 @@ export interface VideoReport {
 }
 
 /**
- * How restored tabs wait until opened (see `restoreGroup`). Both are kept: the choice moves to
- * the settings at stage 7; `placeholder` is the default.
+ * How restored tabs wait until opened (see `restoreGroup`), chosen on the settings page;
+ * `placeholder` is the default.
  */
 export const RESTORE_MODES = ['placeholder', 'background'] as const;
 export type RestoreMode = (typeof RESTORE_MODES)[number];
@@ -126,6 +139,31 @@ export interface CommandResult {
   video?: QueuedVideo;
   /** `videoProgress`: the page should continue the video from here (the saved position). */
   seekToSec?: number;
+  /** `importBackup`: what was added and how to undo it. */
+  imported?: ImportReport;
+}
+
+/** What `undoImport` takes back: the ids an import added and the ones it moved to the trash. */
+export interface ImportUndo {
+  spaces: Id[];
+  groups: Id[];
+  queue: Id[];
+  layouts: Id[];
+  /** «Заменить»: what went to the trash before the import. */
+  trashed?: { spaces: Id[]; groups: Id[]; queue: Id[] };
+  /** «Заменить» closed these open groups: undo puts them back on the tab strip. */
+  reopenGroupIds: Id[];
+}
+
+export interface ImportReport {
+  groups: number;
+  tabs: number;
+  videos: number;
+  layouts: number;
+  /** Already in TabFlow: not added again. */
+  skipped: number;
+  replaced: boolean;
+  undo: ImportUndo;
 }
 
 export interface QueuedVideo {
@@ -162,6 +200,7 @@ export type CommandErrorCode =
   | 'not-in-trash'
   | 'page-not-queueable'
   | 'video-not-found'
+  | 'invalid-backup'
   | 'unexpected';
 
 export type CommandResponse =
@@ -201,6 +240,23 @@ const isOrigins = (value: unknown) =>
       list.length <= 5 &&
       list.every((origin) => typeof origin === 'string' && ORIGIN.test(origin)),
   );
+
+const isIds = (value: unknown) => Array.isArray(value) && value.every(isId);
+/** The backup is checked field by field in the background (`readBackup`); here only its shape. */
+const isBackupLike = (value: unknown) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && 'format' in value;
+const isImportUndo = (value: unknown) => {
+  if (typeof value !== 'object' || value === null) return false;
+  const undo = value as Record<string, unknown>;
+  const trashed = undo.trashed as Record<string, unknown> | undefined;
+  return (
+    ['spaces', 'groups', 'queue', 'layouts', 'reopenGroupIds'].every((key) => isIds(undo[key])) &&
+    (trashed === undefined ||
+      (typeof trashed === 'object' &&
+        trashed !== null &&
+        ['spaces', 'groups', 'queue'].every((key) => isIds(trashed[key]))))
+  );
+};
 
 /** Allowed fields per command; anything else in the message makes it invalid. */
 const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean>> = {
@@ -247,6 +303,9 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
     chromeTabIds: (v) =>
       isOptional(v, (ids) => Array.isArray(ids) && ids.length <= MAX_TILES && ids.every(isIndex)),
   },
+  arrangeGroups: {},
+  importBackup: { backup: isBackupLike, replace: (v) => typeof v === 'boolean' },
+  undoImport: { undo: isImportUndo, mode: (v) => isOptional(v, isMode) },
   videoProgress: {
     positionSec: isSeconds,
     durationSec: (v) => isOptional(v, (d) => isSeconds(d) && (d as number) > 0),

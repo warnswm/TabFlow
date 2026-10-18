@@ -63,7 +63,7 @@ export function currentTarget(
 }
 
 /**
- * What the number on the TabFlow icon counts (menu «Настройки» on the main page): videos for
+ * What the number on the TabFlow icon counts (the settings page): videos for
  * today (default), all queued videos, or stowed groups — what is saved but not in front of the user.
  */
 export const BADGE_MODES = ['today', 'queue', 'stowed'] as const;

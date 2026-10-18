@@ -1,6 +1,6 @@
 /**
- * User settings in `storage.local`: the restore mode and what the badge counts, chosen in the
- * «Настройки» menu of the main page; the settings page comes at stage 7.
+ * User settings in `storage.local`: the restore mode and what the badge counts, chosen on the
+ * settings page (`#/settings` of the main page).
  */
 import { onSettingsChanged, readSetting, writeSetting } from './browser-api';
 import { RESTORE_MODES, type RestoreMode } from './messages';

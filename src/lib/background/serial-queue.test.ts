@@ -31,4 +31,19 @@ describe('serial queue', () => {
     await expect(next).resolves.toBe('ok');
     await expect(queue.idle()).resolves.toBeUndefined();
   });
+
+  it('idle waits for tasks that running tasks add', async () => {
+    const queue = createSerialQueue();
+    const done: string[] = [];
+    void queue.run(async () => {
+      void queue.run(async () => {
+        done.push('added');
+      });
+      done.push('first');
+    });
+
+    await queue.idle();
+
+    expect(done).toEqual(['first', 'added']);
+  });
 });

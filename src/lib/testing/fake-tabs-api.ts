@@ -213,6 +213,11 @@ export class FakeTabsApi implements TabsApi {
     this.windows = this.windows.filter((id) => this.tabs.some((tab) => tab.windowId === id));
   }
 
+  /** The service worker stopped: events happen without anyone listening, until it starts again. */
+  sleepWorker(): void {
+    this.listeners = [];
+  }
+
   /** Makes the next call of `method` throw. */
   failNext(method: keyof TabsApi): void {
     this.failures.add(method);
@@ -410,6 +415,19 @@ export class FakeTabsApi implements TabsApi {
   async updateGroup(groupId: number, update: GroupUpdate): Promise<void> {
     this.maybeFail('updateGroup');
     this.updateGroupSync(groupId, update);
+  }
+
+  async moveGroup(groupId: number, index: number): Promise<void> {
+    this.maybeFail('moveGroup');
+    const group = this.groups.get(groupId);
+    if (!group) throw new Error(`No group ${groupId}`);
+    const moving = this.tabs.filter((tab) => tab.groupId === groupId);
+    this.tabs = this.tabs.filter((tab) => tab.groupId !== groupId);
+    const anchor = this.tabs.filter((tab) => tab.windowId === group.windowId)[index];
+    if (anchor && index >= 0) this.tabs.splice(this.tabs.indexOf(anchor), 0, ...moving);
+    else this.tabs.push(...moving);
+    for (const tab of moving) this.emit({ type: 'tabUpdated', tabId: tab.id });
+    this.emit({ type: 'groupMoved', groupId });
   }
 
   async requestVideoReport(tabId: number): Promise<void> {

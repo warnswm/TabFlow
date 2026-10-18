@@ -2,19 +2,21 @@
   "name": "tabflow",
   "description": "TabFlow — менеджер вкладок для Chrome. Всё на виду. Ничего в памяти.",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
     "zip": "wxt zip",
+    "icons": "node scripts/icons.mjs",
     "postinstall": "wxt prepare",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "wxt build && playwright test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",

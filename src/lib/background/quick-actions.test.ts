@@ -334,6 +334,21 @@ describe('badge and context menu', () => {
     expect(t.ui.groupItems()).toHaveLength(2);
   });
 
+  it('follow a command that arrives while the start is still queued', async () => {
+    const fresh = setupBackground();
+    void fresh.bg.start(); // its refresh is queued before the command
+
+    expectOk(
+      await fresh.command({
+        type: 'queueLink',
+        url: 'https://www.youtube.com/watch?v=a',
+        title: 'A',
+      }),
+    );
+
+    expect(fresh.ui.badge.text).toBe('1');
+  });
+
   it('rebuild the menu only when it changes', async () => {
     t.api.addGroup('Работа', 'blue', [{ url: URL('a') }]);
     await t.settle();

@@ -5,6 +5,7 @@ import {
   Minimize2,
   Moon,
   SquareCheck,
+  Settings,
   SquarePlay,
 } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
@@ -14,6 +15,7 @@ import {
   getHotkey,
   getOpenTabsInfo,
   type OpenTabsInfo,
+  openSettingsPage,
   openSidePanel,
   requestSiteAccess,
   supportsSidePanel,
@@ -62,6 +64,11 @@ export default function App() {
       setBusy(false);
       await readTabs();
     }
+  }
+
+  async function openSettings() {
+    await openSettingsPage();
+    window.close();
   }
 
   async function openApp() {
@@ -113,6 +120,15 @@ export default function App() {
           </svg>
         </span>
         <h1 className="text-[15px] font-bold">TabFlow</h1>
+        <button
+          type="button"
+          aria-label="Настройки"
+          title="Настройки"
+          onClick={() => void openSettings()}
+          className="ml-auto flex size-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-(--duration-fast) hover:bg-surface-raised hover:text-fg"
+        >
+          <Settings aria-hidden className="size-4.5" />
+        </button>
       </header>
 
       <section className="flex flex-col gap-3 p-4">
