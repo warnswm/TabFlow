@@ -11,6 +11,7 @@ import {
   pickedItems,
   pickerGroups,
   togglePick,
+  withAdded,
   toLayoutLinks,
 } from './tile-picker';
 
@@ -85,10 +86,12 @@ describe('pickerGroups', () => {
 });
 
 describe('togglePick', () => {
-  it('adds at the end, drops on a second click, takes at most four', () => {
+  it('adds at the end, drops on a second click, takes at most nine', () => {
+    const nine = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     expect(togglePick([], 'a')).toEqual(['a']);
     expect(togglePick(['a', 'b'], 'a')).toEqual(['b']);
-    expect(togglePick(['a', 'b', 'c', 'd'], 'e')).toEqual(['a', 'b', 'c', 'd']);
+    expect(togglePick(nine.slice(0, 8), '9')).toEqual(nine);
+    expect(togglePick(nine, 'x')).toEqual(nine);
   });
 });
 
@@ -173,5 +176,18 @@ describe('layoutPanes', () => {
       [undefined, 'https://gone.example/', 'Удалена'],
       [undefined, 'https://open.example/', 'Открытая'],
     ]);
+  });
+});
+
+describe('withAdded', () => {
+  it('keeps the shown panes, drops the closed ones, appends the added', () => {
+    expect(withAdded(['a', 'b', 'c'], new Set(['b']), ['d', 'a'])).toEqual(['a', 'c', 'd']);
+    const eight = ['1', '2', '3', '4', '5', '6', '7', '8'];
+    expect(withAdded(eight, new Set(), ['9', '10'])).toEqual([...eight, '9']);
+  });
+
+  it('picks no more than the room left', () => {
+    expect(togglePick(['a', 'b'], 'c', 2)).toEqual(['a', 'b']);
+    expect(togglePick(['a'], 'c', 2)).toEqual(['a', 'c']);
   });
 });

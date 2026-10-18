@@ -3,6 +3,7 @@ import {
   isTileCount,
   MAX_TILES,
   MIN_TILES,
+  paneRects,
   type Rect,
 } from '../../tiling/layout';
 import type { TabFlowDB } from '../db';
@@ -59,6 +60,39 @@ export class LayoutRepository {
       updatedAt: this.clock(),
     });
     if (changed === 0) throw new RecordNotFoundError('Layout', id);
+  }
+
+  /**
+   * «Добавить» in the viewer of a saved layout: the links go to its end, up to nine in all. Moved
+   * panes keep their places; the new ones get their places in the grid of the new number.
+   */
+  async addLinks(id: Id, links: readonly LayoutLink[]): Promise<TileLayout> {
+    return this.db.transaction('rw', this.db.layouts, async () => {
+      const layout = await this.db.layouts.get(id);
+      if (!layout) throw new RecordNotFoundError('Layout', id);
+      const known = new Set(layout.links.map((link) => link.url));
+      const fresh = links
+        .filter((link) => !known.has(link.url))
+        .slice(0, MAX_TILES - layout.links.length);
+      const all = [
+        ...layout.links,
+        ...fresh.map(({ tabId, url, title }) =>
+          tabId === undefined ? { url, title } : { tabId, url, title },
+        ),
+      ];
+      const arranged = isPaneArrangement(layout.rects, layout.links.length)
+        ? layout.rects
+        : undefined;
+      const grid = paneRects(all.length);
+      const rects = arranged && [...copyRects(arranged), ...grid.slice(arranged.length)];
+      const changes = {
+        links: all,
+        rects: rects && isPaneArrangement(rects, all.length) ? rects : undefined,
+        updatedAt: this.clock(),
+      };
+      await this.db.layouts.update(id, changes);
+      return { ...layout, ...changes };
+    });
   }
 
   /** Where the panes are now (moved or resized), one per link; `undefined` — back to the grid. */

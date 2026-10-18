@@ -83,8 +83,16 @@ export default function App() {
   if (route.view === 'side' || route.view === 'layout') {
     return (
       <>
-        {/* Another set of panes (a layout just saved, another one opened) starts afresh. */}
-        <SideBySideView key={routeHash(route)} route={route} overview={overview} />
+        {/*
+          Another layout (just saved, another one opened) starts afresh; panes added to «Рядом»
+          keep the viewer, so the frames already open are not reloaded.
+        */}
+        <SideBySideView
+          key={route.view === 'side' ? 'side' : routeHash(route)}
+          route={route}
+          overview={overview}
+          index={index}
+        />
         <Toaster />
       </>
     );

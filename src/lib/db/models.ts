@@ -114,7 +114,7 @@ export interface LayoutLink {
 }
 
 /**
- * A saved layout of «Рядом»: 2–4 links shown side by side on the main page. The arrangement
+ * A saved layout of «Рядом»: 2–9 links shown side by side on the main page. The arrangement
  * follows the number of links (see `tiling/layout.ts`), so only the links in pane order are kept.
  * Deleted for good (undo puts the record back), not moved to the trash.
  */

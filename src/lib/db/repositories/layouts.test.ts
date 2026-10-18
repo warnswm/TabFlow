@@ -16,12 +16,12 @@ describe('LayoutRepository', () => {
     expect((await t.layouts.list()).map((layout) => layout.id)).toEqual([first.id, second.id]);
   });
 
-  it('holds two to four links', async () => {
+  it('holds two to nine links', async () => {
     const t = setupTestDb();
-    await expect(t.layouts.create('Одна', [link(1)])).rejects.toThrow(RangeError);
-    await expect(
-      t.layouts.create('Пять', [link(1), link(2), link(3), link(4), link(5)]),
-    ).rejects.toThrow(RangeError);
+    const links = (n: number) => Array.from({ length: n }, (_, i) => link(i + 1));
+    await expect(t.layouts.create('Одна', links(1))).rejects.toThrow(RangeError);
+    await expect(t.layouts.create('Десять', links(10))).rejects.toThrow(RangeError);
+    expect((await t.layouts.create('Девять', links(9))).links).toHaveLength(9);
   });
 
   it('renames a layout', async () => {
@@ -71,5 +71,32 @@ describe('LayoutRepository: where the panes are', () => {
     expect(layout.rects).toBeUndefined();
     await t.layouts.setRects(layout.id, rects);
     expect((await t.layouts.get(layout.id))?.rects).toBeUndefined();
+  });
+});
+
+describe('LayoutRepository: «Добавить»', () => {
+  it('appends links up to nine, without repeats; moved panes keep their places', async () => {
+    const t = setupTestDb();
+    const moved = [
+      { left: 0, top: 0, width: 70, height: 100 },
+      { left: 60, top: 10, width: 40, height: 50 },
+    ];
+    const layout = await t.layouts.create('Учёба', [link(1), link(2)], moved);
+
+    const added = await t.layouts.addLinks(layout.id, [link(2), link(3)]);
+
+    expect(added.links.map((l) => l.url)).toEqual([link(1).url, link(2).url, link(3).url]);
+    expect(added.rects?.slice(0, 2)).toEqual(moved);
+    expect(added.rects).toHaveLength(3);
+    expect(await t.layouts.get(layout.id)).toEqual(added);
+
+    const many = Array.from({ length: 10 }, (_, i) => link(i + 10));
+    expect((await t.layouts.addLinks(layout.id, many)).links).toHaveLength(9);
+  });
+
+  it('keeps the grid for a layout whose panes were not moved', async () => {
+    const t = setupTestDb();
+    const layout = await t.layouts.create('Учёба', [link(1), link(2)]);
+    expect((await t.layouts.addLinks(layout.id, [link(3)])).rects).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 /**
  * The dialog «Рядом» on the main page and its viewer: links of all groups and open tabs outside
- * TabFlow to pick 2–4 from, in the order they were picked (it is the order of the panes, see
+ * TabFlow to pick 2–9 from, in the order they were picked (it is the order of the panes, see
  * `tiling/layout.ts`).
  *
  * A picked item is a key: the id of a saved link, or `u:<address>` of an open tab outside TabFlow
@@ -78,9 +78,26 @@ export function openPages(tabs: readonly PageTab[], query: string): PageTab[] {
 }
 
 /** Picks an item (at the end) or drops it; at most four. */
-export function togglePick(picked: readonly string[], key: string): string[] {
+export function togglePick(
+  picked: readonly string[],
+  key: string,
+  limit: number = MAX_TILES,
+): string[] {
   if (picked.includes(key)) return picked.filter((item) => item !== key);
-  return picked.length >= MAX_TILES ? [...picked] : [...picked, key];
+  return picked.length >= limit ? [...picked] : [...picked, key];
+}
+
+/**
+ * The panes of `#/side/…` after «Добавить»: the panes still shown (closed ones are dropped, they
+ * would take the room), then the added ones; no repeats, at most nine.
+ */
+export function withAdded(
+  keys: readonly string[],
+  closed: ReadonlySet<string>,
+  added: readonly string[],
+): string[] {
+  const shown = keys.filter((key) => !closed.has(key));
+  return [...new Set([...shown, ...added])].slice(0, MAX_TILES);
 }
 
 /** A picked item, also a pane of the viewer. */

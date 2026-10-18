@@ -252,9 +252,9 @@ describe('route', () => {
     // An open tab is kept by its address: commas and slashes are encoded.
     const page: Route = { view: 'side', items: ['a', 'u:https://x.example/a,b?c=1#d'] };
     expect(parseRoute(routeHash(page))).toEqual(page);
-    expect(parseRoute('#/side/a,a,b,c,d,e')).toEqual({
+    expect(parseRoute('#/side/a,a,b,c,d,e,f,g,h,i,j')).toEqual({
       view: 'side',
-      items: ['a', 'b', 'c', 'd'],
+      items: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'],
     });
     expect(parseRoute('#/side/')).toEqual({ view: 'space' });
     expect(parseRoute(routeHash({ view: 'layout', layoutId: 'x' }))).toEqual({

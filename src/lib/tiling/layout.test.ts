@@ -64,7 +64,7 @@ describe('tileRects', () => {
 
   it('fills an odd-sized area exactly, without gaps or overlaps', () => {
     const odd: Rect = { left: 7, top: 3, width: 1365, height: 727 };
-    for (const count of [2, 3, 4]) {
+    for (const count of [2, 3, 4, 5, 6, 7, 8, 9]) {
       const rects = tileRects(count, odd);
       expect(rects).toHaveLength(count);
       expect(overlaps(rects)).toBe(false);
@@ -78,11 +78,29 @@ describe('tileRects', () => {
     }
   });
 
-  it('refuses fewer than two or more than four windows', () => {
+  it('puts five to nine panes in rows: 3+2, 3+3, 4+3, 4+4, 3×3', () => {
+    const rows = (count: number) => {
+      const tops = tileRects(count, FULL_HD).map((r) => r.top);
+      return [...new Set(tops)].map((top) => tops.filter((t) => t === top).length);
+    };
+    expect(rows(5)).toEqual([3, 2]);
+    expect(rows(6)).toEqual([3, 3]);
+    expect(rows(7)).toEqual([4, 3]);
+    expect(rows(8)).toEqual([4, 4]);
+    expect(rows(9)).toEqual([3, 3, 3]);
+    expect(tileRects(5, FULL_HD).slice(3)).toEqual([
+      { left: 0, top: 520, width: 960, height: 520 },
+      { left: 960, top: 520, width: 960, height: 520 },
+    ]);
+    expect(tileRects(9, FULL_HD)[4]).toEqual({ left: 640, top: 346, width: 640, height: 346 });
+  });
+
+  it('refuses fewer than two or more than nine panes', () => {
     expect(() => tileRects(1, FULL_HD)).toThrow(RangeError);
-    expect(() => tileRects(5, FULL_HD)).toThrow(RangeError);
+    expect(() => tileRects(10, FULL_HD)).toThrow(RangeError);
     expect(isTileCount(2)).toBe(true);
-    expect(isTileCount(4)).toBe(true);
+    expect(isTileCount(9)).toBe(true);
+    expect(isTileCount(10)).toBe(false);
     expect(isTileCount(2.5)).toBe(false);
   });
 });

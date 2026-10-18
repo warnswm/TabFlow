@@ -1,4 +1,4 @@
-import { Columns2, Ellipsis, Pencil, Search, Trash, X } from 'lucide-react';
+import { Columns2, Ellipsis, Pencil, Plus, Search, Trash, X } from 'lucide-react';
 import { Dialog, DropdownMenu } from 'radix-ui';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { displayHost, type Overview } from '@/lib/app/overview';
@@ -8,6 +8,7 @@ import {
   defaultLayoutName,
   openPages,
   pageKey,
+  type PickedItem,
   pickedItems,
   pickerGroups,
   togglePick,
@@ -36,7 +37,7 @@ import {
 } from '../ui';
 
 /**
- * «Рядом»: 2–4 links of any groups or open tabs outside TabFlow, shown side by side on the main
+ * «Рядом»: 2–9 links of any groups or open tabs outside TabFlow, shown side by side on the main
  * page (`SideBySideView`).
  * Saved layouts open in one click; they are database records the page writes itself.
  */
@@ -51,8 +52,7 @@ const PANES = ['панель', 'панели', 'панелей'] as const;
  * (sites already allowed are not asked again). `prepare` runs after that (saving a layout).
  */
 function showSideBySide(route: Route, urls: readonly string[], prepare?: () => Promise<boolean>) {
-  const patterns = [...new Set(urls.map(sitePattern).filter((p) => p !== undefined))];
-  const access = requestSiteAccess(patterns);
+  const access = askSiteAccess(urls);
   void (async () => {
     await access;
     if (prepare && !(await prepare())) return;
@@ -61,19 +61,92 @@ function showSideBySide(route: Route, urls: readonly string[], prepare?: () => P
   })();
 }
 
+/** Asks access to the whole sites of the pages. Right in a click: Chrome asks only then. */
+function askSiteAccess(urls: readonly string[]): Promise<boolean> {
+  return requestSiteAccess([...new Set(urls.map(sitePattern).filter((p) => p !== undefined))]);
+}
+
 /** Tabs of the shown links and the shown open tabs are unloaded: they stay on the tab strip. */
 function sleepShown(tabIds: readonly Id[], chromeTabIds: readonly number[] = []) {
   if (tabIds.length + chromeTabIds.length === 0) return;
   void runCommand({ type: 'sleepLinks', tabIds: [...tabIds], chromeTabIds: [...chromeTabIds] });
 }
 
+/** Unloads the tabs of picked links and open tabs. */
+function sleepPicked(items: readonly PickedItem[]) {
+  sleepShown(
+    items.flatMap((item) => (item.link ? [item.link.id] : [])),
+    items.flatMap((item) =>
+      !item.link && item.chromeTabId !== undefined ? [item.chromeTabId] : [],
+    ),
+  );
+}
+
+/** What the viewer tells the dialog when panes are added to it. */
+export interface AddingPanes {
+  /** Addresses already shown: they are not offered again. */
+  shownUrls: ReadonlySet<string>;
+  /** Panes shown now. */
+  shownCount: number;
+  /** Called after access to the sites was asked; their tabs are already put to sleep. */
+  onAdd: (items: PickedItem[]) => void;
+}
+
+/** «Добавить» in the viewer: more links or open tabs to the panes shown, up to nine in all. */
+export function AddPanesDialog({
+  overview,
+  index,
+  adding,
+  open,
+  onOpenChange,
+}: TileDialogProps & {
+  adding: AddingPanes;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const room = MAX_TILES - adding.shownCount;
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={DIALOG_OVERLAY} />
+        <Dialog.Content className={`${DIALOG_CONTENT} w-[min(680px,calc(100vw-32px))]`}>
+          <div className="flex items-center gap-2">
+            <Plus aria-hidden className="size-4 text-accent" />
+            <Dialog.Title className="text-md font-semibold">Добавить рядом</Dialog.Title>
+            <Dialog.Close aria-label="Закрыть" className={`ml-auto ${BUTTON_ICON}`}>
+              <X aria-hidden className="size-4" />
+            </Dialog.Close>
+          </div>
+          <Dialog.Description className="-mt-2 text-sm text-fg-muted">
+            Можно добавить ещё {count(room, LINKS)} — всего не больше {MAX_TILES}. Открытые рамки не
+            перезагружаются.
+          </Dialog.Description>
+          {open && (
+            <TilePicker
+              overview={overview}
+              index={index}
+              adding={adding}
+              onDone={() => onOpenChange(false)}
+            />
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 const SECTION_TITLE = 'text-xs font-semibold tracking-wide text-fg-subtle uppercase';
 
-/** Which pane gets which number: 2 — columns, 3 — one left and two right, 4 — 2×2. */
+/** Which pane gets which number, row by row. */
 const LAYOUT_HINT: Record<number, string> = {
   2: 'Две колонки.',
   3: 'Первая — слева, две — справа друг над другом.',
-  4: 'Сетка 2×2, по строкам.',
+  4: 'Сетка 2×2.',
+  5: 'Три сверху, две снизу.',
+  6: 'Сетка 3×2.',
+  7: 'Четыре сверху, три снизу.',
+  8: 'Сетка 4×2.',
+  9: 'Сетка 3×3.',
 };
 
 interface TileDialogProps {
@@ -98,7 +171,7 @@ export function TileDialog({ overview, index }: TileDialogProps) {
             </Dialog.Close>
           </div>
           <Dialog.Description className="-mt-2 text-sm text-fg-muted">
-            От 2 до 4 открытых вкладок или ссылок — сайты открываются рядом прямо на главной. Ссылки
+            От 2 до 9 открытых вкладок или ссылок — сайты открываются рядом прямо на главной. Ссылки
             остаются в своих группах, вкладки засыпают и остаются на местах.
           </Dialog.Description>
           {target && (
@@ -117,20 +190,29 @@ export function TileDialog({ overview, index }: TileDialogProps) {
 
 interface TilePickerProps extends TileDialogProps {
   startGroupId?: Id;
+  /** «Добавить» in the viewer: pick 1+ more, the panes shown are not offered. */
+  adding?: AddingPanes;
   onDone: () => void;
 }
 
-function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) {
+function TilePicker({ overview, index, startGroupId, adding, onDone }: TilePickerProps) {
   const layouts = useLiveQuery(loadLayouts) ?? [];
   const [pages, setPages] = useState<BrowserTab[]>([]);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [save, setSave] = useState(false);
   const [name, setName] = useState<string>();
-  const groups = pickerGroups(overview, index, query);
-  const shownPages = openPages(pages, query);
+  const offered = (url: string) => !adding?.shownUrls.has(url);
+  const groups = pickerGroups(overview, index, query)
+    .map((item) => ({ ...item, tabs: item.tabs.filter((tab) => offered(tab.url)) }))
+    .filter((item) => item.tabs.length > 0);
+  const shownPages = openPages(pages, query).filter((tab) => offered(tab.url));
   const items = pickedItems(overview, pages, picked);
-  const full = picked.length >= MAX_TILES;
+  const before = adding?.shownCount ?? 0;
+  const limit = MAX_TILES - before;
+  const full = picked.length >= limit;
+  const total = before + picked.length;
+  const minimum = adding ? 1 : MIN_TILES;
 
   // Open tabs outside TabFlow, as they are when the dialog opens.
   useEffect(() => {
@@ -150,16 +232,23 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
         key={key}
         url={url}
         title={title}
-        at={at}
+        at={at < 0 ? at : before + at}
         disabled={at < 0 && full}
-        onToggle={() => setPicked((current) => togglePick(current, key))}
+        onToggle={() => setPicked((current) => togglePick(current, key, limit))}
       />
     );
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (items.length < MIN_TILES) return;
+    if (items.length < minimum) return;
+    if (adding) {
+      const access = askSiteAccess(items.map((item) => item.url));
+      onDone();
+      sleepPicked(items);
+      void access.finally(() => adding.onAdd(items));
+      return;
+    }
     showSideBySide(
       { view: 'side', items: items.map((item) => item.key) },
       items.map((item) => item.url),
@@ -176,12 +265,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
           }
         }
         onDone();
-        sleepShown(
-          items.flatMap((item) => (item.link ? [item.link.id] : [])),
-          items.flatMap((item) =>
-            !item.link && item.chromeTabId !== undefined ? [item.chromeTabId] : [],
-          ),
-        );
+        sleepPicked(items);
         return true;
       },
     );
@@ -189,7 +273,7 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
 
   return (
     <form onSubmit={onSubmit} className="flex min-h-0 flex-col gap-4">
-      {layouts.length > 0 && query === '' && (
+      {!adding && layouts.length > 0 && query === '' && (
         <section aria-label="Сохранённые раскладки" className="flex flex-col gap-1">
           <h2 className={SECTION_TITLE}>Раскладки</h2>
           <ul className="flex flex-col">
@@ -248,25 +332,29 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
       </section>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <LayoutScheme count={Math.max(picked.length, MIN_TILES)} active={picked.length} />
+        <LayoutScheme count={Math.max(total, MIN_TILES)} active={total} />
         <p className="min-w-40 flex-1 text-sm text-fg-muted" aria-live="polite">
-          {picked.length < MIN_TILES
-            ? `Выбрано: ${picked.length} из ${MAX_TILES}. Нужно хотя бы две.`
-            : `${count(picked.length, PANES)}. ${LAYOUT_HINT[picked.length] ?? ''}`}
+          {adding
+            ? `Сейчас ${count(before, PANES)}, выбрано ещё ${picked.length} из ${limit}.`
+            : picked.length < MIN_TILES
+              ? `Выбрано: ${picked.length} из ${MAX_TILES}. Нужно хотя бы две.`
+              : `${count(picked.length, PANES)}. ${LAYOUT_HINT[picked.length] ?? ''}`}
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={save}
-            onChange={(event) => setSave(event.target.checked)}
-            className="size-4 accent-(--color-accent)"
-          />
-          Сохранить раскладку
-        </label>
-        {save && (
+        {!adding && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={save}
+              onChange={(event) => setSave(event.target.checked)}
+              className="size-4 accent-(--color-accent)"
+            />
+            Сохранить раскладку
+          </label>
+        )}
+        {!adding && save && (
           <input
             aria-label="Название раскладки"
             value={name ?? defaultLayoutName(items)}
@@ -280,9 +368,18 @@ function TilePicker({ overview, index, startGroupId, onDone }: TilePickerProps) 
           <Dialog.Close type="button" className={BUTTON_SECONDARY}>
             Отмена
           </Dialog.Close>
-          <button type="submit" disabled={items.length < MIN_TILES} className={BUTTON_PRIMARY}>
-            <Columns2 aria-hidden className="size-4" />
-            Открыть рядом
+          <button type="submit" disabled={items.length < minimum} className={BUTTON_PRIMARY}>
+            {adding ? (
+              <>
+                <Plus aria-hidden className="size-4" />
+                Добавить
+              </>
+            ) : (
+              <>
+                <Columns2 aria-hidden className="size-4" />
+                Открыть рядом
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -396,12 +493,14 @@ function LayoutRow({ layout, onOpen }: { layout: TileLayout; onOpen: () => void 
   );
 }
 
-const SCHEME = { left: 0, top: 0, width: 48, height: 28 };
+const SCHEME = { left: 0, top: 0, width: 60, height: 36 };
 
-/** A small picture of the windows: numbered cells, the first `active` ones filled. */
+/** A small picture of the panes: numbered cells, the first `active` ones filled. */
 function LayoutScheme({ count: cells, active }: { count: number; active: number }) {
+  // Up to nine cells: the numbers get smaller in the grids of three rows and four columns.
+  const size = cells > 6 ? 'text-[8px]' : 'text-[9px]';
   return (
-    <span aria-hidden className="relative block h-7 w-12 shrink-0">
+    <span aria-hidden className="relative block h-9 w-15 shrink-0">
       {tileRects(cells, SCHEME).map((rect, i) => (
         <span
           key={i}
@@ -411,7 +510,7 @@ function LayoutScheme({ count: cells, active }: { count: number; active: number 
             width: rect.width - 2,
             height: rect.height - 2,
           }}
-          className={`absolute flex items-center justify-center rounded-xs border font-mono text-[9px] leading-none ${
+          className={`absolute flex items-center justify-center rounded-xs border font-mono leading-none ${size} ${
             i < active
               ? 'border-accent bg-accent-soft text-accent'
               : 'border-border-control text-fg-subtle'

@@ -93,8 +93,10 @@ describe('sleepLinks («Рядом»)', () => {
     expect(await t.groups.listAll()).toEqual([]);
   });
 
-  it('takes up to four links and four open tabs', () => {
-    expect(isCommand({ type: 'sleepLinks', tabIds: ['a', 'b', 'c', 'd', 'e'] })).toBe(false);
+  it('takes up to nine links and nine open tabs', () => {
+    const ten = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+    expect(isCommand({ type: 'sleepLinks', tabIds: ten })).toBe(false);
+    expect(isCommand({ type: 'sleepLinks', tabIds: ten.slice(0, 9) })).toBe(true);
     expect(isCommand({ type: 'sleepLinks', tabIds: ['a'] })).toBe(true);
     expect(isCommand({ type: 'sleepLinks', tabIds: [], chromeTabIds: [1, 2] })).toBe(true);
     expect(isCommand({ type: 'sleepLinks', tabIds: [], chromeTabIds: [-1] })).toBe(false);

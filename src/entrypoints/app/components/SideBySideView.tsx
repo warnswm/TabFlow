@@ -4,6 +4,7 @@ import {
   Columns2,
   ExternalLink,
   LayoutGrid,
+  Plus,
   RotateCw,
   X,
 } from 'lucide-react';
@@ -17,12 +18,14 @@ import {
 } from 'react';
 import { displayHost, type Overview } from '@/lib/app/overview';
 import type { Route } from '@/lib/app/route';
+import type { SearchIndex } from '@/lib/app/search';
 import {
   defaultLayoutName,
   layoutPanes,
   type PickedItem,
   pickedItems,
   toLayoutLinks,
+  withAdded,
 } from '@/lib/app/tile-picker';
 import {
   allowFramesInThisTab,
@@ -38,6 +41,7 @@ import { patternCovers, sitePattern } from '@/lib/queue/site-access';
 import {
   isPaneArrangement,
   isTileCount,
+  MAX_TILES,
   moveRect,
   paneRects,
   type Rect,
@@ -49,10 +53,11 @@ import { useLiveQuery } from '@/lib/use-live-query';
 import { runCommand } from '../commands';
 import { navigate } from '../hooks';
 import { useUi } from '../store';
+import { AddPanesDialog } from './TileDialog';
 import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, UNTITLED } from '../ui';
 
 /**
- * «Рядом»: the main page turns into a viewer of 2–4 sites (links or open tabs), each in a frame of
+ * «Рядом»: the main page turns into a viewer of 2–9 sites (links or open tabs), each in a frame of
  * its own. Panes start in the grid of `tiling/layout.ts`; each one moves by its bar and resizes by
  * its edges and corners at will — panes may overlap, the one touched last is on top. A saved
  * layout keeps where its panes are. Frames are not tabs: a site loads anew, and the tabs and groups
@@ -95,7 +100,15 @@ function useFramesAllowed(): boolean {
 
 type Rects = Readonly<Record<string, Rect>>;
 
-export function SideBySideView({ route, overview }: { route: ViewerRoute; overview: Overview }) {
+export function SideBySideView({
+  route,
+  overview,
+  index,
+}: {
+  route: ViewerRoute;
+  overview: Overview;
+  index: SearchIndex;
+}) {
   const layoutId = route.view === 'layout' ? route.layoutId : undefined;
   const loadLayout = useMemo(
     () => async (): Promise<TileLayout | null> =>
@@ -224,6 +237,34 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
     window.location.hash = useUi.getState().viewerReturn ?? '#/';
   }
 
+  // «Добавить»: a saved layout counts all its links (closing a pane only hides it), «Рядом» —
+  // the panes shown.
+  const [adding, setAdding] = useState(false);
+  const paneCount = layout ? layout.links.length : shown.length;
+  const room = MAX_TILES - paneCount;
+
+  /** New panes join the shown ones on top; frames already open are not reloaded. */
+  async function addPanes(items: readonly PickedItem[]) {
+    readGranted();
+    if (route.view === 'side') {
+      const keys = items.map((item) => item.key);
+      setClosed((current) => new Set([...current].filter((key) => !keys.includes(key))));
+      setFront((current) => [...current.filter((key) => !keys.includes(key)), ...keys]);
+      navigate({ view: 'side', items: withAdded(route.items, closed, keys) });
+      return;
+    }
+    if (!layout) return;
+    try {
+      const updated = await repositories.layouts.addLinks(layout.id, toLayoutLinks(items));
+      const fresh = layoutPanes(overview, updated.links)
+        .slice(layout.links.length)
+        .map((pane) => pane.key);
+      setFront((current) => [...current, ...fresh]);
+    } catch {
+      useUi.getState().showToast('Раскладка не изменилась — ссылки остались в своих группах.');
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col bg-bg">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
@@ -249,8 +290,29 @@ export function SideBySideView({ route, overview }: { route: ViewerRoute; overvi
               Сохранить раскладку
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            disabled={room <= 0 || loading}
+            title={room <= 0 ? `Рядом — не больше ${MAX_TILES} рамок` : 'Добавить сайты рядом'}
+            className={BUTTON_PRIMARY}
+          >
+            <Plus aria-hidden className="size-4" />
+            Добавить
+          </button>
         </div>
       </header>
+      <AddPanesDialog
+        overview={overview}
+        index={index}
+        open={adding}
+        onOpenChange={setAdding}
+        adding={{
+          shownUrls: new Set((layout ? panes : shown).map((pane) => pane.url)),
+          shownCount: paneCount,
+          onAdd: (items) => void addPanes(items),
+        }}
+      />
 
       <main ref={areaRef} className={`relative min-h-0 flex-1 ${dragging ? 'select-none' : ''}`}>
         {shown.length === 0 && !loading ? (

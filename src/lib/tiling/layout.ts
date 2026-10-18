@@ -1,9 +1,10 @@
 /**
- * «Рядом»: where the panes of 2–4 links go on the main page. The layout depends on the number of
- * links only, panes follow the order of the links:
- * - 2 — two columns: left, right;
+ * «Рядом»: where the panes of 2–9 links go on the main page at first (then they move freely).
+ * The layout depends on the number of links only, panes follow the order of the links, row by row:
+ * - 2 — two columns;
  * - 3 — the first on the left at full height, the other two stacked on the right;
- * - 4 — a 2×2 grid: top left, top right, bottom left, bottom right.
+ * - 4 — 2×2; 5 — three on top, two below; 6 — 3×2; 7 — four on top, three below; 8 — 4×2;
+ *   9 — 3×3.
  */
 
 /** A rectangle: pixels for the small scheme, percent of the screen for the panes. */
@@ -15,54 +16,56 @@ export interface Rect {
 }
 
 export const MIN_TILES = 2;
-export const MAX_TILES = 4;
+export const MAX_TILES = 9;
 
 export function isTileCount(count: number): boolean {
   return Number.isInteger(count) && count >= MIN_TILES && count <= MAX_TILES;
 }
 
-/** Splits `size` into two whole parts; the second gets the odd pixel. */
-function halves(start: number, size: number): [[number, number], [number, number]] {
-  const first = Math.floor(size / 2);
-  return [
-    [start, first],
-    [start + first, size - first],
-  ];
+/** Panes per row, top to bottom (3 is a layout of its own: columns, not rows). */
+const ROWS: Readonly<Record<number, readonly number[]>> = {
+  2: [2],
+  4: [2, 2],
+  5: [3, 2],
+  6: [3, 3],
+  7: [4, 3],
+  8: [4, 4],
+  9: [3, 3, 3],
+};
+
+/** Splits `size` into `parts` whole parts from `start`; the last one gets the remainder. */
+function split(start: number, size: number, parts: number): [number, number][] {
+  const base = Math.floor(size / parts);
+  return Array.from({ length: parts }, (_, i) => [
+    start + base * i,
+    i === parts - 1 ? size - base * (parts - 1) : base,
+  ]);
 }
 
-/** The rectangles of `count` panes (2–4) inside `area`, in pane order; together they fill it. */
+const rect = ([left, width]: [number, number], [top, height]: [number, number]): Rect => ({
+  left,
+  top,
+  width,
+  height,
+});
+
+/** The rectangles of `count` panes (2–9) inside `area`, in pane order; together they fill it. */
 export function tileRects(count: number, area: Rect): Rect[] {
   if (!isTileCount(count)) {
     throw new RangeError(`tileRects: ${count} panes, expected ${MIN_TILES}–${MAX_TILES}`);
   }
-  const [[left, leftWidth], [right, rightWidth]] = halves(area.left, area.width);
-  const [[top, topHeight], [bottom, bottomHeight]] = halves(area.top, area.height);
-  const rect = (x: number, width: number, y: number, height: number): Rect => ({
-    left: x,
-    top: y,
-    width,
-    height,
-  });
-
-  if (count === 2) {
-    return [
-      rect(left, leftWidth, area.top, area.height),
-      rect(right, rightWidth, area.top, area.height),
-    ];
-  }
+  const columns = split(area.left, area.width, 2);
   if (count === 3) {
-    return [
-      rect(left, leftWidth, area.top, area.height),
-      rect(right, rightWidth, top, topHeight),
-      rect(right, rightWidth, bottom, bottomHeight),
-    ];
+    const [left, right] = columns as [[number, number], [number, number]];
+    const [top, bottom] = split(area.top, area.height, 2) as [[number, number], [number, number]];
+    return [rect(left, [area.top, area.height]), rect(right, top), rect(right, bottom)];
   }
-  return [
-    rect(left, leftWidth, top, topHeight),
-    rect(right, rightWidth, top, topHeight),
-    rect(left, leftWidth, bottom, bottomHeight),
-    rect(right, rightWidth, bottom, bottomHeight),
-  ];
+  const rows = ROWS[count] ?? [count];
+  const heights = split(area.top, area.height, rows.length);
+  return rows.flatMap((perRow, row) => {
+    const height = heights[row] ?? [area.top, area.height];
+    return split(area.left, area.width, perRow).map((width) => rect(width, height));
+  });
 }
 
 const WHOLE: Rect = { left: 0, top: 0, width: 100, height: 100 };
