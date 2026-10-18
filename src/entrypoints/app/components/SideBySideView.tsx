@@ -483,7 +483,6 @@ function Pane({
           src={pane.url}
           title={name}
           allow="fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write"
-          allowFullScreen
           className={`min-h-0 w-full flex-1 bg-bg ${dragging ? 'pointer-events-none' : ''}`}
         />
       ) : null}

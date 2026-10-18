@@ -190,9 +190,11 @@ type Dnr = typeof browser.declarativeNetRequest;
  * Lets sites show in frames of this page (the viewer of «Рядом»). Many sites forbid framing with
  * `X-Frame-Options` or `Content-Security-Policy: frame-ancestors`; a session rule removes these
  * headers from frame responses — only in this tab, only on sites TabFlow has access to
- * (`declarativeNetRequestWithHostAccess`), and not after the browser restarts. The rule lives as
- * long as the tab (the main page has no other frames); rules of closed tabs are dropped here.
- * False where the API is missing: frames then load as usual.
+ * (`declarativeNetRequestWithHostAccess`), and not after the browser restarts. Some sites refuse
+ * the frame request itself by `Sec-Fetch-Dest: iframe` (WhatsApp Web answers 400), so the rule
+ * asks for the page as a document. The rule lives as long as the tab (the main page
+ * has no other frames); rules of closed tabs are dropped here. False where the API is missing:
+ * frames then load as usual.
  */
 export async function allowFramesInThisTab(): Promise<boolean> {
   const dnr = (browser as Partial<typeof browser>).declarativeNetRequest;
@@ -215,6 +217,13 @@ export async function allowFramesInThisTab(): Promise<boolean> {
         priority: 1,
         action: {
           type: 'modifyHeaders' as Dnr['RuleActionType']['MODIFY_HEADERS'],
+          requestHeaders: [
+            {
+              header: 'sec-fetch-dest',
+              operation: 'set' as Dnr['HeaderOperation']['SET'],
+              value: 'document',
+            },
+          ],
           responseHeaders: [remove('x-frame-options'), remove('content-security-policy')],
         },
         condition: {
