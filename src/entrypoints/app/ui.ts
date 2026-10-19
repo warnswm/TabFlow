@@ -3,6 +3,8 @@
  * Tailwind generates classes it can find in the source.
  */
 import type { GroupColor } from '@/lib/db';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 
 export const BUTTON_PRIMARY =
   'inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-sm font-semibold text-on-accent transition-colors duration-(--duration-fast) hover:bg-accent-hover active:bg-accent-pressed disabled:opacity-50';
@@ -49,16 +51,33 @@ export const GROUP_DOT: Record<GroupColor, string> = {
   orange: 'bg-group-orange',
 };
 
-export const GROUP_COLOR_NAME: Record<GroupColor, string> = {
-  grey: 'Серый',
-  blue: 'Синий',
-  red: 'Красный',
-  yellow: 'Жёлтый',
-  green: 'Зелёный',
-  pink: 'Розовый',
-  purple: 'Фиолетовый',
-  cyan: 'Голубой',
-  orange: 'Оранжевый',
-};
+const colorNames = localized<Record<GroupColor, string>>({
+  ru: {
+    grey: 'Серый',
+    blue: 'Синий',
+    red: 'Красный',
+    yellow: 'Жёлтый',
+    green: 'Зелёный',
+    pink: 'Розовый',
+    purple: 'Фиолетовый',
+    cyan: 'Голубой',
+    orange: 'Оранжевый',
+  },
+  en: {
+    grey: 'Grey',
+    blue: 'Blue',
+    red: 'Red',
+    yellow: 'Yellow',
+    green: 'Green',
+    pink: 'Pink',
+    purple: 'Purple',
+    cyan: 'Cyan',
+    orange: 'Orange',
+  },
+});
 
-export const UNTITLED = 'Без названия';
+/** Name of a group color in the interface language. */
+export const groupColorName = (color: GroupColor) => colorNames()[color];
+
+/** «Без названия» / “Untitled” — a group without a title. */
+export const untitled = () => words().untitled;

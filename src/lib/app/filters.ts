@@ -2,16 +2,51 @@
  * Filter chips of a space: «Все / Активные / Спят / Убраны» with counts, combined with the search.
  */
 import type { GroupState, Id } from '../db/models';
+import { localized } from '../i18n';
 import type { GroupView } from './overview';
 import type { GroupMatch } from './search';
 
 export type StateFilter = 'all' | GroupState;
 
+const text = localized({
+  ru: {
+    labels: { all: 'Все', active: 'Активные', asleep: 'Спят', stowed: 'Убраны' },
+    nothing: (query: string) => `Ничего не найдено по запросу «${query}».`,
+    nothingAmong: (chip: string, query: string) =>
+      `Среди групп «${chip}» ничего не найдено по запросу «${query}».`,
+    empty: {
+      all: '',
+      active: 'Активных групп нет.',
+      asleep: 'Спящих групп нет.',
+      stowed: 'Убранных групп нет.',
+    },
+  },
+  en: {
+    labels: { all: 'All', active: 'Active', asleep: 'Asleep', stowed: 'Stowed' },
+    nothing: (query: string) => `Nothing found for “${query}”.`,
+    nothingAmong: (chip: string, query: string) =>
+      `Nothing found for “${query}” among “${chip}” groups.`,
+    empty: {
+      all: '',
+      active: 'No active groups.',
+      asleep: 'No groups asleep.',
+      stowed: 'No stowed groups.',
+    },
+  },
+});
+
+const chip = (value: StateFilter) => ({
+  value,
+  get label() {
+    return text().labels[value];
+  },
+});
+
 export const STATE_FILTERS: readonly { value: StateFilter; label: string }[] = [
-  { value: 'all', label: 'Все' },
-  { value: 'active', label: 'Активные' },
-  { value: 'asleep', label: 'Спят' },
-  { value: 'stowed', label: 'Убраны' },
+  chip('all'),
+  chip('active'),
+  chip('asleep'),
+  chip('stowed'),
 ];
 
 /** `matches` — the search result (`undefined` when nothing is searched). */
@@ -46,20 +81,10 @@ export function stateCounts(
 
 /** Text for an empty result, in the brand voice. */
 export function emptyFilterText(filter: StateFilter, query: string): string {
+  const t = text();
   const trimmed = query.trim();
   if (trimmed !== '') {
-    return filter === 'all'
-      ? `Ничего не найдено по запросу «${trimmed}».`
-      : `Среди групп «${STATE_FILTERS.find((f) => f.value === filter)?.label}» ничего не найдено по запросу «${trimmed}».`;
+    return filter === 'all' ? t.nothing(trimmed) : t.nothingAmong(t.labels[filter], trimmed);
   }
-  switch (filter) {
-    case 'active':
-      return 'Активных групп нет.';
-    case 'asleep':
-      return 'Спящих групп нет.';
-    case 'stowed':
-      return 'Убранных групп нет.';
-    default:
-      return '';
-  }
+  return t.empty[filter];
 }

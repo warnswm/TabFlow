@@ -54,7 +54,9 @@ import { runCommand } from '../commands';
 import { navigate } from '../hooks';
 import { useUi } from '../store';
 import { AddPanesDialog } from './TileDialog';
-import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, UNTITLED } from '../ui';
+import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, untitled } from '../ui';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 
 /**
  * «Рядом»: the main page turns into a viewer of 2–9 sites (links or open tabs), each in a frame of
@@ -65,6 +67,58 @@ import { BUTTON_ICON, BUTTON_PRIMARY, BUTTON_SECONDARY, UNTITLED } from '../ui';
  */
 
 export type ViewerRoute = Extract<Route, { view: 'side' | 'layout' }>;
+
+const text = localized({
+  ru: {
+    title: 'Рядом',
+    rectsNotSaved: 'Расположение рамок не сохранено — раскладка прежняя.',
+    saved: (name: string) => `Раскладка ${name} сохранена — она в диалоге «Рядом» на главной.`,
+    notSaved: 'Раскладка не сохранена. Ссылки остались в своих группах.',
+    notChanged: 'Раскладка не изменилась — ссылки остались в своих группах.',
+    back: 'К группам',
+    hint: 'Рамку двигает заголовок, размер меняют края и углы. Сайт не показывается — «Открыть во вкладке».',
+    align: 'Выровнять',
+    saveLayout: 'Сохранить раскладку',
+    full: (max: number) => `Рядом — не больше ${max} рамок`,
+    addSites: 'Добавить сайты рядом',
+    add: 'Добавить',
+    layoutGone: 'Раскладка не найдена — возможно, она уже удалена.',
+    nothing: 'Рядом ничего не открыто. Ссылки остались в своих группах.',
+    reload: 'Обновить',
+    openInTab: 'Открыть во вкладке',
+    closePane: 'Закрыть панель',
+    closePaneHint: 'Закрыть панель — ссылка останется в группе',
+    tabOnly: 'Файлы и служебные страницы открываются только во вкладке.',
+    noAccess: (host: string) =>
+      `Нет доступа к сайту ${host}. Без него многие сайты не показываются в рамке.`,
+    allowAccess: 'Разрешить доступ',
+  },
+  en: {
+    title: 'Side by side',
+    rectsNotSaved: 'Frame positions were not saved — the layout is unchanged.',
+    saved: (name: string) =>
+      `Layout ${name} saved — it is in the “Side by side” dialog on the main page.`,
+    notSaved: 'The layout was not saved. Links stay in their groups.',
+    notChanged: 'The layout is unchanged — links stay in their groups.',
+    back: 'Back to groups',
+    hint: 'Drag a frame by its title, resize it by the edges and corners. A site doesn\u2019t show — “Open in a tab”.',
+    align: 'Align',
+    saveLayout: 'Save layout',
+    full: (max: number) => `Side by side — ${max} frames at most`,
+    addSites: 'Add sites side by side',
+    add: 'Add',
+    layoutGone: 'Layout not found — it may have been deleted already.',
+    nothing: 'Nothing is open side by side. Links stay in their groups.',
+    reload: 'Reload',
+    openInTab: 'Open in a tab',
+    closePane: 'Close pane',
+    closePaneHint: 'Close pane — the link stays in its group',
+    tabOnly: 'Files and browser pages open only in a tab.',
+    noAccess: (host: string) =>
+      `No access to ${host}. Without it many sites don\u2019t show in a frame.`,
+    allowAccess: 'Allow access',
+  },
+});
 
 const SITE = /^https?:\/\//;
 
@@ -147,7 +201,7 @@ export function SideBySideView({
   const savedRects =
     layout && isPaneArrangement(layout.rects, layout.links.length) ? layout.rects : undefined;
   const grid = paneRects(shown.length);
-  const title = route.view === 'layout' ? layout?.name || UNTITLED : 'Рядом';
+  const title = route.view === 'layout' ? layout?.name || untitled() : text().title;
   const loading = route.view === 'layout' && layout === undefined;
   const arranged = moved !== undefined || savedRects !== undefined;
 
@@ -170,9 +224,7 @@ export function SideBySideView({
       panes.map((pane, i) => rects[pane.key] ?? savedRects?.[i] ?? paneRects(panes.length)[i]);
     repositories.layouts
       .setRects(layout.id, all?.every((rect) => rect !== undefined) ? all : undefined)
-      .catch(() =>
-        useUi.getState().showToast('Расположение рамок не сохранено — раскладка прежняя.'),
-      );
+      .catch(() => useUi.getState().showToast(text().rectsNotSaved));
   }
 
   function startDrag(event: ReactPointerEvent, pane: PickedItem, handle: ResizeHandle | 'move') {
@@ -226,10 +278,10 @@ export function SideBySideView({
         toLayoutLinks(shown),
         arranged ? shown.map(rectOf) : undefined,
       );
-      showToast(`Раскладка «${name}» сохранена — она в диалоге «Рядом» на главной.`);
+      showToast(text().saved(words().quote(name)));
       navigate({ view: 'layout', layoutId: saved.id });
     } catch {
-      showToast('Раскладка не сохранена. Ссылки остались в своих группах.');
+      showToast(text().notSaved);
     }
   }
 
@@ -261,7 +313,7 @@ export function SideBySideView({
         .map((pane) => pane.key);
       setFront((current) => [...current, ...fresh]);
     } catch {
-      useUi.getState().showToast('Раскладка не изменилась — ссылки остались в своих группах.');
+      useUi.getState().showToast(text().notChanged);
     }
   }
 
@@ -269,36 +321,34 @@ export function SideBySideView({
     <div className="flex h-screen flex-col bg-bg">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
         <button type="button" onClick={back} className={BUTTON_SECONDARY}>
-          <ArrowLeft aria-hidden className="size-4" />К группам
+          <ArrowLeft aria-hidden className="size-4" />
+          {text().back}
         </button>
         <Columns2 aria-hidden className="size-4 shrink-0 text-accent" />
         <h1 className="min-w-0 truncate text-md font-semibold">{title}</h1>
-        <p className="ml-auto hidden truncate text-xs text-fg-subtle xl:block">
-          Рамку двигает заголовок, размер меняют края и углы. Сайт не показывается — «Открыть во
-          вкладке».
-        </p>
+        <p className="ml-auto hidden truncate text-xs text-fg-subtle xl:block">{text().hint}</p>
         <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
           {arranged && shown.length > 0 && (
             <button type="button" onClick={resetArrangement} className={BUTTON_SECONDARY}>
               <LayoutGrid aria-hidden className="size-4" />
-              Выровнять
+              {text().align}
             </button>
           )}
           {route.view === 'side' && isTileCount(shown.length) && (
             <button type="button" onClick={() => void saveLayout()} className={BUTTON_SECONDARY}>
               <BookmarkPlus aria-hidden className="size-4" />
-              Сохранить раскладку
+              {text().saveLayout}
             </button>
           )}
           <button
             type="button"
             onClick={() => setAdding(true)}
             disabled={room <= 0 || loading}
-            title={room <= 0 ? `Рядом — не больше ${MAX_TILES} рамок` : 'Добавить сайты рядом'}
+            title={room <= 0 ? text().full(MAX_TILES) : text().addSites}
             className={BUTTON_PRIMARY}
           >
             <Plus aria-hidden className="size-4" />
-            Добавить
+            {text().add}
           </button>
         </div>
       </header>
@@ -317,13 +367,9 @@ export function SideBySideView({
       <main ref={areaRef} className={`relative min-h-0 flex-1 ${dragging ? 'select-none' : ''}`}>
         {shown.length === 0 && !loading ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-fg-muted">
-            <p>
-              {route.view === 'layout' && layout === null
-                ? 'Раскладка не найдена — возможно, она уже удалена.'
-                : 'Рядом ничего не открыто. Ссылки остались в своих группах.'}
-            </p>
+            <p>{route.view === 'layout' && layout === null ? text().layoutGone : text().nothing}</p>
             <button type="button" onClick={back} className={BUTTON_PRIMARY}>
-              К группам
+              {text().back}
             </button>
           </div>
         ) : (
@@ -432,8 +478,8 @@ function Pane({
         <div className="ml-auto flex shrink-0 items-center">
           <button
             type="button"
-            aria-label="Обновить"
-            title="Обновить"
+            aria-label={text().reload}
+            title={text().reload}
             onClick={() => setReload((n) => n + 1)}
             className={BUTTON_ICON}
           >
@@ -441,8 +487,8 @@ function Pane({
           </button>
           <button
             type="button"
-            aria-label="Открыть во вкладке"
-            title="Открыть во вкладке"
+            aria-label={text().openInTab}
+            title={text().openInTab}
             onClick={openInTab}
             className={BUTTON_ICON}
           >
@@ -450,8 +496,8 @@ function Pane({
           </button>
           <button
             type="button"
-            aria-label="Закрыть панель"
-            title="Закрыть панель — ссылка останется в группе"
+            aria-label={text().closePane}
+            title={text().closePaneHint}
             onClick={onClose}
             className={BUTTON_ICON}
           >
@@ -461,20 +507,18 @@ function Pane({
       </div>
 
       {!site ? (
-        <Notice text="Файлы и служебные страницы открываются только во вкладке.">
+        <Notice text={text().tabOnly}>
           <button type="button" onClick={openInTab} className={BUTTON_PRIMARY}>
-            Открыть во вкладке
+            {text().openInTab}
           </button>
         </Notice>
       ) : framesReady && !hasAccess ? (
-        <Notice
-          text={`Нет доступа к сайту ${host}. Без него многие сайты не показываются в рамке.`}
-        >
+        <Notice text={text().noAccess(host)}>
           <button type="button" onClick={allowAccess} className={BUTTON_PRIMARY}>
-            Разрешить доступ
+            {text().allowAccess}
           </button>
           <button type="button" onClick={openInTab} className={BUTTON_SECONDARY}>
-            Открыть во вкладке
+            {text().openInTab}
           </button>
         </Notice>
       ) : framesReady ? (

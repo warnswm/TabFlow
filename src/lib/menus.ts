@@ -5,6 +5,8 @@
  * the page, on links and on the TabFlow icon.
  */
 import type { Id, Space, TabGroup } from './db/models';
+import { localized } from './i18n';
+import { words } from './i18n/words';
 import type { Command } from './messages';
 
 export type MenuContext = 'page' | 'link' | 'action';
@@ -38,6 +40,29 @@ const GROUP_ITEM_PREFIX = 'group:';
 export const MENU_GROUP_LIMIT = 10;
 const MAX_TITLE_LENGTH = 48;
 
+const text = localized({
+  ru: {
+    stow: 'Убрать в TabFlow',
+    sleep: 'Усыпить группу',
+    queue: 'В очередь «на потом»',
+    saveLink: 'Сохранить ссылку в TabFlow',
+    toGroup: 'В группу',
+    collapseAll: 'Свернуть всё',
+    openQueue: 'Открыть очередь',
+    openApp: 'Открыть TabFlow',
+  },
+  en: {
+    stow: 'Stow in TabFlow',
+    sleep: 'Put group to sleep',
+    queue: 'Add to watch-later queue',
+    saveLink: 'Save link to TabFlow',
+    toGroup: 'Save to group',
+    collapseAll: 'Collapse all',
+    openQueue: 'Open queue',
+    openApp: 'Open TabFlow',
+  },
+});
+
 function shorten(text: string): string {
   return text.length > MAX_TITLE_LENGTH ? `${text.slice(0, MAX_TITLE_LENGTH - 1)}…` : text;
 }
@@ -50,30 +75,31 @@ export function buildMenu(groups: readonly TabGroup[], spaces: readonly Space[])
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, MENU_GROUP_LIMIT);
 
+  const t = text();
   const items: MenuItem[] = [
-    { id: MENU_IDS.stow, title: 'Убрать в TabFlow', contexts: ['page'] },
-    { id: MENU_IDS.sleep, title: 'Усыпить группу', contexts: ['page'] },
-    { id: MENU_IDS.queuePage, title: 'В очередь «на потом»', contexts: ['page'] },
-    { id: MENU_IDS.saveLink, title: 'Сохранить ссылку в TabFlow', contexts: ['link'] },
-    { id: MENU_IDS.queueLink, title: 'В очередь «на потом»', contexts: ['link'] },
+    { id: MENU_IDS.stow, title: t.stow, contexts: ['page'] },
+    { id: MENU_IDS.sleep, title: t.sleep, contexts: ['page'] },
+    { id: MENU_IDS.queuePage, title: t.queue, contexts: ['page'] },
+    { id: MENU_IDS.saveLink, title: t.saveLink, contexts: ['link'] },
+    { id: MENU_IDS.queueLink, title: t.queue, contexts: ['link'] },
   ];
   if (recent.length > 0) {
     const contexts: MenuContext[] = ['page', 'link'];
     items.push(
       { id: MENU_IDS.separator, title: '', contexts, separator: true },
-      { id: MENU_IDS.toGroup, title: 'В группу', contexts },
+      { id: MENU_IDS.toGroup, title: t.toGroup, contexts },
       ...recent.map((group) => ({
         id: `${GROUP_ITEM_PREFIX}${group.id}`,
         parentId: MENU_IDS.toGroup,
-        title: `${shorten(group.title || 'Без названия')} · ${spaceNames.get(group.spaceId)}`,
+        title: `${shorten(group.title || words().untitled)} · ${spaceNames.get(group.spaceId)}`,
         contexts,
       })),
     );
   }
   items.push(
-    { id: MENU_IDS.collapseAll, title: 'Свернуть всё', contexts: ['action'] },
-    { id: MENU_IDS.openQueue, title: 'Открыть очередь', contexts: ['action'] },
-    { id: MENU_IDS.openApp, title: 'Открыть TabFlow', contexts: ['action'] },
+    { id: MENU_IDS.collapseAll, title: t.collapseAll, contexts: ['action'] },
+    { id: MENU_IDS.openQueue, title: t.openQueue, contexts: ['action'] },
+    { id: MENU_IDS.openApp, title: t.openApp, contexts: ['action'] },
   );
   return items;
 }

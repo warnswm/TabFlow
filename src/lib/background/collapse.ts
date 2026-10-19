@@ -5,7 +5,7 @@
  * - pinned tabs and browser pages stay open; duplicate URLs are saved once per group;
  * - the main TabFlow page opens, then the saved tabs are closed.
  */
-import { MONTHS_RU } from '../app/time-format';
+import { dateAndTime } from '../app/time-format';
 import { NO_GROUP } from '../browser-api';
 import type { Id, Timestamp } from '../db';
 import type { CommandResult } from '../messages';
@@ -13,12 +13,9 @@ import type { BackgroundContext } from './context';
 import { closeTabs, openAppPageIn, result, stowInDb } from './group-actions';
 import { isSaveableTab, splitDuplicates } from './tab-rules';
 
-/** Title of the group made from loose tabs: «16 окт, 23:40» (local time). */
+/** Title of the group made from loose tabs: «16 окт, 23:40» / “Oct 16, 23:40” (local time). */
 export function collapsedGroupTitle(time: Timestamp): string {
-  const date = new Date(time);
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  return `${date.getDate()} ${MONTHS_RU[date.getMonth()]}, ${hh}:${mm}`;
+  return dateAndTime(time);
 }
 
 export async function collapseAll(ctx: BackgroundContext): Promise<CommandResult> {

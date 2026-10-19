@@ -4,6 +4,8 @@
  * panel, the main page, the popup and the badge.
  */
 import type { QueueItem } from '../db/models';
+import { localized } from '../i18n';
+import { words } from '../i18n/words';
 
 /** «На сегодня» — this many videos from the top of the queue. */
 export const TODAY_COUNT = 3;
@@ -54,12 +56,44 @@ export interface FreeTimeSlot {
   phrase: string;
 }
 
-export const FREE_TIME_SLOTS: readonly FreeTimeSlot[] = [
-  { minutes: 10, label: '10 мин', phrase: '10 мин' },
-  { minutes: 20, label: '20 мин', phrase: '20 мин' },
-  { minutes: 40, label: '40 мин', phrase: '40 мин' },
-  { minutes: 60, label: '1 ч+', phrase: 'час' },
-];
+const text = localized({
+  ru: {
+    slot: (minutes: number) => (minutes >= 60 ? '1 ч+' : `${minutes} мин`),
+    slotPhrase: (minutes: number) => (minutes >= 60 ? 'час' : `${minutes} мин`),
+    empty: 'Очередь пуста.',
+    fits: (phrase: string, list: string, total: string) => `За ${phrase}: ${list} · ${total}.`,
+    unknown: 'Длительность пока неизвестна — она появится, когда видео откроется.',
+    nothingFits: (phrase: string) => `В ${phrase} не помещается ни одно видео.`,
+    minutes: (n: number) => `${n} мин`,
+    hours: (n: number) => `${n} ч`,
+    hoursMinutes: (h: number, m: number) => `${h} ч ${m} мин`,
+  },
+  en: {
+    slot: (minutes: number) => (minutes >= 60 ? '1 h+' : `${minutes} min`),
+    slotPhrase: (minutes: number) => (minutes >= 60 ? 'an hour' : `${minutes} min`),
+    empty: 'Queue is empty.',
+    fits: (phrase: string, list: string, total: string) => `In ${phrase}: ${list} · ${total}.`,
+    unknown: 'Durations are not known yet — they appear once the videos open.',
+    nothingFits: (phrase: string) => `No video fits in ${phrase}.`,
+    minutes: (n: number) => `${n} min`,
+    hours: (n: number) => `${n} h`,
+    hoursMinutes: (h: number, m: number) => `${h} h ${m} min`,
+  },
+});
+
+function slot(minutes: number): FreeTimeSlot {
+  return {
+    minutes,
+    get label() {
+      return text().slot(minutes);
+    },
+    get phrase() {
+      return text().slotPhrase(minutes);
+    },
+  };
+}
+
+export const FREE_TIME_SLOTS: readonly FreeTimeSlot[] = [slot(10), slot(20), slot(40), slot(60)];
 
 /** The longest slot («1 ч+»): when nothing fits, the first video with a known duration is taken. */
 const OPEN_ENDED_MINUTES = 60;
@@ -96,25 +130,27 @@ export function priorityList(priorities: readonly number[]): string {
   const labels = priorities.map((priority) => `#${priority}`);
   const last = labels.pop();
   if (last === undefined) return '';
-  return labels.length === 0 ? last : `${labels.join(', ')} и ${last}`;
+  return labels.length === 0 ? last : `${labels.join(', ')} ${words().and} ${last}`;
 }
 
 /** The line under the free time chips. */
 export function pickHint(queued: readonly QueueItem[], slot: FreeTimeSlot): string {
-  if (queued.length === 0) return 'Очередь пуста.';
+  const t = text();
+  if (queued.length === 0) return t.empty;
   const pick = pickForTime(queued, slot.minutes);
   if (pick.priorities.length > 0) {
-    return `За ${slot.phrase}: ${priorityList(pick.priorities)} · ${formatMinutes(pick.totalSec)}.`;
+    return t.fits(slot.phrase, priorityList(pick.priorities), formatMinutes(pick.totalSec));
   }
   if (queued.every((item) => item.durationSec === undefined)) {
-    return 'Длительность пока неизвестна — она появится, когда видео откроется.';
+    return t.unknown;
   }
-  return `В ${slot.phrase} не помещается ни одно видео.`;
+  return t.nothingFits(slot.phrase);
 }
 
 /** «3 видео · 47 мин»; without minutes when no duration is known. */
 export function totalText({ count, totalSec, unknown }: QueueTotal): string {
-  return unknown === count ? `${count} видео` : `${count} видео · ${formatMinutes(totalSec)}`;
+  const videos = words().videos(count);
+  return unknown === count ? videos : `${videos} · ${formatMinutes(totalSec)}`;
 }
 
 /** Video length as players show it: «4:55», «18:42», «1:02:03». */
@@ -133,8 +169,9 @@ export function formatMinutes(sec: number): string {
   const minutes = sec <= 0 ? 0 : Math.max(1, Math.round(sec / 60));
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  if (hours === 0) return `${rest} мин`;
-  return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`;
+  const t = text();
+  if (hours === 0) return t.minutes(rest);
+  return rest === 0 ? t.hours(hours) : t.hoursMinutes(hours, rest);
 }
 
 /** How the side panel lists the queue: by priority (drag & drop), or the shortest first. */

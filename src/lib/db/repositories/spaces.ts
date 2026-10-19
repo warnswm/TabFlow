@@ -1,8 +1,10 @@
+import { INBOX_NAMES, words } from '../../i18n/words';
 import type { TabFlowDB } from '../db';
 import type { Id, Space } from '../models';
 import { ORDER_STEP, orderAfterLast, orderBetween, placeAt } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 
+/** Name of the default space in Russian (the tests' language); English — «Inbox» (`i18n/words`). */
 export const DEFAULT_SPACE_NAME = 'Входящие';
 
 export class SpaceRepository {
@@ -47,7 +49,7 @@ export class SpaceRepository {
       const now = this.clock();
       const space: Space = {
         id: newId(),
-        name: DEFAULT_SPACE_NAME,
+        name: words().inbox,
         order: orderBetween(undefined, spaces[0]?.order),
         isDefault: true,
         createdAt: now,
@@ -55,6 +57,21 @@ export class SpaceRepository {
       };
       await this.db.spaces.add(space);
       return space;
+    });
+  }
+
+  /**
+   * The default space carries the name of the interface language («Входящие» / «Inbox») until it
+   * is renamed: after the language changes, the stored name follows it.
+   */
+  async followLanguage(): Promise<void> {
+    await this.db.transaction('rw', this.db.spaces, async () => {
+      const inbox = (await this.list()).find((space) => space.isDefault);
+      const name = words().inbox;
+      if (!inbox || inbox.name === name || !INBOX_NAMES.some((known) => known === inbox.name)) {
+        return;
+      }
+      await this.db.spaces.update(inbox.id, { name });
     });
   }
 

@@ -1,6 +1,7 @@
 import { DropdownMenu } from 'radix-ui';
 import { ListFilter } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { localized } from '@/lib/i18n';
 import type { QueueSort } from '@/lib/queue/plan';
 import { loadRestoreMode } from '@/lib/settings';
 import { Toaster } from '../app/components/Toaster';
@@ -17,21 +18,32 @@ import { QueuePanel } from './QueuePanel';
 
 type Section = 'queue' | 'groups';
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'queue', label: 'Очередь' },
-  { id: 'groups', label: 'Группы' },
-];
+const SECTIONS: Section[] = ['queue', 'groups'];
 
-const SORT_LABEL: Record<QueueSort, string> = {
-  priority: 'По приоритету',
-  short: 'Сначала короткие',
-};
+const text = localized({
+  ru: {
+    pageTitle: 'TabFlow — очередь',
+    sections: { queue: 'Очередь', groups: 'Группы' } as Record<Section, string>,
+    sectionsLabel: 'Разделы панели',
+    sort: 'Сортировка',
+    sorts: { priority: 'По приоритету', short: 'Сначала короткие' } as Record<QueueSort, string>,
+  },
+  en: {
+    pageTitle: 'TabFlow — queue',
+    sections: { queue: 'Queue', groups: 'Groups' },
+    sectionsLabel: 'Panel sections',
+    sort: 'Sort',
+    sorts: { priority: 'By priority', short: 'Shortest first' },
+  },
+});
 
 export default function App() {
+  const t = text();
   const [section, setSection] = useState<Section>('queue');
   const [sort, setSort] = useState<QueueSort>('priority');
 
   useEffect(() => {
+    document.title = text().pageTitle;
     void loadRestoreMode().then((mode) => useUi.getState().setRestoreMode(mode, false));
   }, []);
 
@@ -58,10 +70,10 @@ export default function App() {
         </span>
         <div
           role="tablist"
-          aria-label="Разделы панели"
+          aria-label={t.sectionsLabel}
           className="flex rounded-md border border-border bg-surface p-0.5"
         >
-          {SECTIONS.map(({ id, label }) => (
+          {SECTIONS.map((id) => (
             <button
               key={id}
               type="button"
@@ -76,7 +88,7 @@ export default function App() {
                   : 'text-fg-muted hover:text-fg'
               }`}
             >
-              {label}
+              {t.sections[id]}
             </button>
           ))}
         </div>
@@ -84,8 +96,8 @@ export default function App() {
         {section === 'queue' && (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
-              aria-label={`Сортировка: ${SORT_LABEL[sort]}`}
-              title={`Сортировка: ${SORT_LABEL[sort]}`}
+              aria-label={`${t.sort}: ${t.sorts[sort]}`}
+              title={`${t.sort}: ${t.sorts[sort]}`}
               className={`ml-auto ${BUTTON_ICON} ${sort === 'priority' ? '' : 'text-accent'}`}
             >
               <ListFilter aria-hidden className="size-4" />
@@ -93,13 +105,13 @@ export default function App() {
             <DropdownMenu.Portal>
               <DropdownMenu.Content align="end" sideOffset={4} className={MENU_CONTENT}>
                 <DropdownMenu.Label className="px-2 py-1.5 text-xs text-fg-subtle">
-                  Сортировка
+                  {t.sort}
                 </DropdownMenu.Label>
                 <DropdownMenu.RadioGroup
                   value={sort}
                   onValueChange={(value) => setSort(value as QueueSort)}
                 >
-                  {(Object.keys(SORT_LABEL) as QueueSort[]).map((value) => (
+                  {(Object.keys(t.sorts) as QueueSort[]).map((value) => (
                     <DropdownMenu.RadioItem
                       key={value}
                       value={value}
@@ -108,7 +120,7 @@ export default function App() {
                       <DropdownMenu.ItemIndicator className="absolute left-2 flex">
                         <span aria-hidden className="size-2 rounded-full bg-current" />
                       </DropdownMenu.ItemIndicator>
-                      {SORT_LABEL[value]}
+                      {t.sorts[value]}
                     </DropdownMenu.RadioItem>
                   ))}
                 </DropdownMenu.RadioGroup>

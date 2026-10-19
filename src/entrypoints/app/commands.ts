@@ -7,9 +7,26 @@ import { describeResponse } from '@/lib/command-messages';
 import { repositories, type Space, type TabGroup } from '@/lib/db';
 import { type Command, type CommandResponse, sendCommand } from '@/lib/messages';
 import { useUi } from './store';
-import { UNTITLED } from './ui';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
+import { untitled } from './ui';
 
-const NO_ANSWER = 'Фоновая часть TabFlow не ответила. Вкладки и ссылки остались на месте.';
+const text = localized({
+  ru: {
+    noAnswer: 'Фоновая часть TabFlow не ответила. Вкладки и ссылки остались на месте.',
+    undone: 'Отменено.',
+    moved: (group: string, space: string) => `Группа ${group} перенесена в ${space}.`,
+    stayed: (space: string) => `Группа осталась в ${space} — исходного пространства уже нет.`,
+    notMoved: 'Группа не перенесена — она осталась на месте.',
+  },
+  en: {
+    noAnswer: 'The TabFlow background did not answer. Tabs and links stay where they are.',
+    undone: 'Undone.',
+    moved: (group: string, space: string) => `Group ${group} moved to ${space}.`,
+    stayed: (space: string) => `The group stays in ${space} — the original space is gone.`,
+    notMoved: 'The group was not moved — it stays where it was.',
+  },
+});
 
 export interface RunOptions {
   /** Title of the group or space, for the message. */
@@ -27,7 +44,7 @@ export async function runCommand(
   try {
     response = await sendCommand(command);
   } catch {
-    showToast(NO_ANSWER);
+    showToast(text().noAnswer);
     return undefined;
   }
 
@@ -62,19 +79,18 @@ export async function moveGroupToSpace(group: TabGroup, space: Space): Promise<v
     const index = (await repositories.groups.listBySpace(from)).findIndex((g) => g.id === group.id);
     await repositories.groups.move(group.id, space.id);
     arrangeTabStrip();
-    showToast(`Группа «${group.title || UNTITLED}» перенесена в «${space.name}».`, () => {
+    const quote = words().quote;
+    showToast(text().moved(quote(group.title || untitled()), quote(space.name)), () => {
       repositories.groups
         .place(group.id, from, Math.max(index, 0))
         .then(() => {
           arrangeTabStrip();
-          showToast('Отменено.');
+          showToast(text().undone);
         })
-        .catch(() =>
-          showToast(`Группа осталась в «${space.name}» — исходного пространства уже нет.`),
-        );
+        .catch(() => showToast(text().stayed(quote(space.name))));
     });
   } catch {
-    showToast('Группа не перенесена — она осталась на месте.');
+    showToast(text().notMoved);
   }
 }
 
@@ -88,8 +104,8 @@ async function runUndo(commands: readonly Command[]): Promise<void> {
         return;
       }
     }
-    showToast('Отменено.');
+    showToast(text().undone);
   } catch {
-    showToast(NO_ANSWER);
+    showToast(text().noAnswer);
   }
 }

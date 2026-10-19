@@ -4,6 +4,7 @@
  */
 import type { Repositories } from '../db';
 import type { GroupState, Id, SavedTab, Space, TabGroup } from '../db/models';
+import { getLanguage } from '../i18n';
 
 export interface GroupView {
   group: TabGroup;
@@ -83,7 +84,7 @@ export async function loadOverview(repos: Repositories): Promise<Overview> {
 export function displayHost(url: string): string {
   try {
     const { hostname, protocol } = new URL(url);
-    if (protocol === 'file:') return 'файл';
+    if (protocol === 'file:') return getLanguage() === 'ru' ? 'файл' : 'file';
     return hostname.replace(/^www\./, '');
   } catch {
     return url;

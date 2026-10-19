@@ -9,5 +9,26 @@
   "extDescription": {
     "message": "Collapse tabs into groups in one click and free up memory. Groups as tiles, a watch-later video queue. Everything in sight.",
     "description": "Short description (up to 132 characters)."
+  },
+  "cmdCollapseAll": {
+    "message": "Collapse all"
+  },
+  "cmdStowCurrent": {
+    "message": "Stow the current group or tab in TabFlow"
+  },
+  "cmdSleepCurrent": {
+    "message": "Put the current group to sleep"
+  },
+  "cmdOpenApp": {
+    "message": "Open TabFlow"
+  },
+  "cmdQueueCurrent": {
+    "message": "Add the current tab to the watch-later queue"
+  },
+  "cmdOpenQueue": {
+    "message": "Open the queue in the side panel"
+  },
+  "cmdOpenPopup": {
+    "message": "Open the TabFlow popup"
   }
 }

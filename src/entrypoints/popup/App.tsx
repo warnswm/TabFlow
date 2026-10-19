@@ -20,7 +20,9 @@ import {
   requestSiteAccess,
   supportsSidePanel,
 } from '@/lib/browser-api';
-import { describeResponse, plural, TABS } from '@/lib/command-messages';
+import { describeResponse } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { pluralEn, pluralRu, words } from '@/lib/i18n/words';
 import { repositories } from '@/lib/db';
 import { formatShortcut } from '@/lib/hotkeys';
 import { type Command, sendCommand } from '@/lib/messages';
@@ -32,9 +34,55 @@ import { useLiveQuery } from '@/lib/use-live-query';
 const listGroups = () => repositories.groups.listAll();
 const listQueue = () => repositories.queue.list('queued');
 
+const text = localized({
+  ru: {
+    noAnswer: 'Фоновая часть TabFlow не ответила. Вкладки остались на месте.',
+    pinned: 'закреплена',
+    browserPage: 'служебная',
+    settings: 'Настройки',
+    tabsOpen: (n: number) => `${pluralRu(n, ['вкладка', 'вкладки', 'вкладок'])} открыто`,
+    groupsAsleep: 'групп спят',
+    stowed: 'убрано в TabFlow',
+    collapseAll: 'Свернуть всё',
+    quickActions: 'Быстрые действия',
+    stowGroup: (name: string) => `Убрать ${name}`,
+    asleep: 'спит',
+    sleepGroup: (name: string) => `Усыпить ${name}`,
+    stowTab: 'Убрать вкладку',
+    stowSelected: 'Убрать выделенные',
+    sleepInactive: 'Усыпить неактивные группы',
+    queued: (n: number) => `в очереди · #${n}`,
+    queueVideo: 'Видео в очередь',
+    openQueue: 'Открыть очередь',
+    openApp: 'Открыть TabFlow',
+  },
+  en: {
+    noAnswer: 'The TabFlow background did not answer. Tabs stay where they are.',
+    pinned: 'pinned',
+    browserPage: 'browser page',
+    settings: 'Settings',
+    tabsOpen: (n: number) => `${pluralEn(n, ['tab', 'tabs'])} open`,
+    groupsAsleep: 'groups asleep',
+    stowed: 'stowed in TabFlow',
+    collapseAll: 'Collapse all',
+    quickActions: 'Quick actions',
+    stowGroup: (name: string) => `Stow ${name}`,
+    asleep: 'asleep',
+    sleepGroup: (name: string) => `Put ${name} to sleep`,
+    stowTab: 'Stow tab',
+    stowSelected: 'Stow selected tabs',
+    sleepInactive: 'Put inactive groups to sleep',
+    queued: (n: number) => `queued · #${n}`,
+    queueVideo: 'Add video to the queue',
+    openQueue: 'Open queue',
+    openApp: 'Open TabFlow',
+  },
+});
+
 const NO_TABS: OpenTabsInfo = { count: 0, shownGroupIds: [], selected: 0 };
 
 export default function App() {
+  const t = text();
   const groups = useLiveQuery(listGroups) ?? [];
   const queued = useLiveQuery(listQueue) ?? [];
   const [tabs, setTabs] = useState<OpenTabsInfo>(NO_TABS);
@@ -59,7 +107,7 @@ export default function App() {
     try {
       setStatus(describeResponse(command.type, await sendCommand(command), name));
     } catch {
-      setStatus('Фоновая часть TabFlow не ответила. Вкладки остались на месте.');
+      setStatus(t.noAnswer);
     } finally {
       setBusy(false);
       await readTabs();
@@ -94,9 +142,9 @@ export default function App() {
     void openSidePanel(current.windowId).then(() => window.close());
   }
 
-  const groupName = target.kind === 'group' ? target.group.title || 'Без названия' : '';
+  const groupName = target.kind === 'group' ? target.group.title || words().untitled : '';
   const noneNote =
-    target.kind === 'none' ? (target.reason === 'pinned' ? 'закреплена' : 'служебная') : '';
+    target.kind === 'none' ? (target.reason === 'pinned' ? t.pinned : t.browserPage) : '';
 
   return (
     <main className="flex w-[360px] flex-col bg-surface text-fg">
@@ -122,8 +170,8 @@ export default function App() {
         <h1 className="text-[15px] font-bold">TabFlow</h1>
         <button
           type="button"
-          aria-label="Настройки"
-          title="Настройки"
+          aria-label={t.settings}
+          title={t.settings}
           onClick={() => void openSettings()}
           className="ml-auto flex size-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-(--duration-fast) hover:bg-surface-raised hover:text-fg"
         >
@@ -133,7 +181,7 @@ export default function App() {
 
       <section className="flex flex-col gap-3 p-4">
         <dl className="grid grid-cols-3 gap-2">
-          <Stat value={tabs.count} label={`${plural(tabs.count, TABS)} открыто`} />
+          <Stat value={tabs.count} label={t.tabsOpen(tabs.count)} />
           <Stat
             value={
               <>
@@ -141,9 +189,9 @@ export default function App() {
                 <span className="text-fg-subtle">/{summary.onStrip}</span>
               </>
             }
-            label="групп спят"
+            label={t.groupsAsleep}
           />
-          <Stat value={summary.stowed} label="убрано в TabFlow" accent />
+          <Stat value={summary.stowed} label={t.stowed} accent />
         </dl>
 
         <button
@@ -153,7 +201,7 @@ export default function App() {
           className="flex h-11 items-center justify-center gap-2.5 rounded-[10px] bg-accent text-[15px] font-semibold text-on-accent transition-colors duration-(--duration-fast) hover:bg-accent-hover active:bg-accent-pressed disabled:opacity-50"
         >
           <Minimize2 aria-hidden="true" className="size-4.5" strokeWidth={2.2} />
-          Свернуть всё
+          {t.collapseAll}
         </button>
 
         <p role="status" aria-live="polite" className="text-sm text-fg-muted empty:hidden">
@@ -166,7 +214,7 @@ export default function App() {
           id="quick-actions"
           className="px-2 pt-1 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-fg-subtle uppercase"
         >
-          Быстрые действия
+          {t.quickActions}
         </h2>
 
         {target.kind === 'group' ? (
@@ -176,15 +224,15 @@ export default function App() {
               disabled={busy}
               onClick={() => void run({ type: 'stowCurrent', ...onTab }, groupName)}
             >
-              Убрать «{groupName}»
+              {t.stowGroup(words().quote(groupName))}
             </Action>
             <Action
               icon={<Moon />}
               disabled={busy || target.group.state === 'asleep'}
-              note={target.group.state === 'asleep' ? 'спит' : undefined}
+              note={target.group.state === 'asleep' ? t.asleep : undefined}
               onClick={() => void run({ type: 'sleepCurrent', ...onTab }, groupName)}
             >
-              Усыпить «{groupName}»
+              {t.sleepGroup(words().quote(groupName))}
             </Action>
           </>
         ) : (
@@ -194,7 +242,7 @@ export default function App() {
             note={noneNote || undefined}
             onClick={() => void run({ type: 'stowCurrent', ...onTab })}
           >
-            Убрать вкладку
+            {t.stowTab}
           </Action>
         )}
 
@@ -207,7 +255,7 @@ export default function App() {
             mono
             onClick={() => void run({ type: 'stowSelected' })}
           >
-            Убрать выделенные
+            {t.stowSelected}
           </Action>
         )}
 
@@ -218,16 +266,16 @@ export default function App() {
           mono
           onClick={() => void run({ type: 'sleepInactive' })}
         >
-          Усыпить неактивные группы
+          {t.sleepInactive}
         </Action>
 
         <Action
           icon={<SquarePlay />}
           disabled={busy || !current || !isSaveableUrl(current.url) || queueIndex >= 0}
-          note={queueIndex >= 0 ? `в очереди · #${queueIndex + 1}` : undefined}
+          note={queueIndex >= 0 ? t.queued(queueIndex + 1) : undefined}
           onClick={queueCurrent}
         >
-          Видео в очередь
+          {t.queueVideo}
         </Action>
 
         {supportsSidePanel() && (
@@ -238,7 +286,7 @@ export default function App() {
             mono
             onClick={openQueue}
           >
-            Открыть очередь
+            {t.openQueue}
           </Action>
         )}
       </section>
@@ -249,12 +297,12 @@ export default function App() {
           onClick={() => void openApp()}
           className="flex items-center gap-1.5 rounded-sm font-semibold text-accent transition-colors duration-(--duration-fast) hover:text-accent-hover"
         >
-          Открыть TabFlow
+          {t.openApp}
           <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </button>
         {shortcut && (
           <kbd
-            title="Свернуть всё"
+            title={t.collapseAll}
             className="ml-auto rounded-sm border border-border px-1.5 py-px font-mono text-[11px] text-fg-muted"
           >
             {shortcut}

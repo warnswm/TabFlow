@@ -1,6 +1,7 @@
 /**
  * A fresh Chromium profile with the built extension (`.output/chrome-mv3`) for every test, the id
- * of the extension and helpers for its pages.
+ * of the extension and helpers for its pages. Chromium runs in Russian, so «Как в Chrome» — the
+ * default language setting — shows the interface in Russian.
  */
 import { type BrowserContext, chromium, type Page, test as base } from '@playwright/test';
 import path from 'node:path';
@@ -25,7 +26,12 @@ export const test = base.extend<Fixtures>({
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
       headless,
-      args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
+      locale: 'ru-RU',
+      args: [
+        '--lang=ru',
+        `--disable-extensions-except=${EXTENSION}`,
+        `--load-extension=${EXTENSION}`,
+      ],
     });
     await provide(context);
     await context.close();

@@ -20,7 +20,9 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { getEventCoordinates } from '@dnd-kit/utilities';
 import type { SavedTab, Space, TabGroup } from '@/lib/db';
-import { UNTITLED } from './ui';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
+import { untitled } from './ui';
 
 export type DragData =
   | { type: 'group'; group: TabGroup }
@@ -104,38 +106,72 @@ export const chipUnderPointer: Modifier = ({
   };
 };
 
+const text = localized({
+  ru: {
+    group: 'группа',
+    space: 'пространство',
+    link: 'ссылка',
+    sidebar: 'боковая панель',
+    item: 'элемент',
+    picked: (what: string) => `${what} — взято для перемещения.`,
+    over: (what: string, target: string) => `${what} — над: ${target}.`,
+    outside: (what: string) => `${what} — вне списка.`,
+    dropped: (what: string, target: string) => `${what} — перемещено: ${target}.`,
+    stayed: (what: string) => `${what} — на месте.`,
+    cancelled: (what: string) => `Перемещение отменено. ${what} — на месте.`,
+    instructions:
+      'Пробел — взять. Стрелки — переместить. Пробел или Enter — поставить, Escape — отменить.',
+  },
+  en: {
+    group: 'group',
+    space: 'space',
+    link: 'link',
+    sidebar: 'sidebar',
+    item: 'item',
+    picked: (what: string) => `${what} picked up.`,
+    over: (what: string, target: string) => `${what} — over: ${target}.`,
+    outside: (what: string) => `${what} — outside the list.`,
+    dropped: (what: string, target: string) => `${what} moved: ${target}.`,
+    stayed: (what: string) => `${what} stays in place.`,
+    cancelled: (what: string) => `Move cancelled. ${what} stays in place.`,
+    instructions: 'Space — pick up. Arrows — move. Space or Enter — drop, Escape — cancel.',
+  },
+});
+
 function describe(data: DragData | undefined): string {
+  const t = text();
+  const quote = words().quote;
   switch (data?.type) {
     case 'group':
-      return `группа «${data.group.title || UNTITLED}»`;
+      return `${t.group} ${quote(data.group.title || untitled())}`;
     case 'space':
-      return `пространство «${data.space.name}»`;
+      return `${t.space} ${quote(data.space.name)}`;
     case 'link':
-      return `ссылка «${data.tab.title || data.tab.url}»`;
+      return `${t.link} ${quote(data.tab.title || data.tab.url)}`;
     case 'zone':
-      return 'боковая панель';
+      return t.sidebar;
     default:
-      return 'элемент';
+      return t.item;
   }
 }
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export const announcements: Announcements = {
-  onDragStart: ({ active }) => `${capital(describe(dragData(active)))} взята для перемещения.`,
+  onDragStart: ({ active }) => text().picked(capital(describe(dragData(active)))),
   onDragOver: ({ active, over }) =>
     over
-      ? `${capital(describe(dragData(active)))} — над: ${describe(dragData(over))}.`
-      : `${capital(describe(dragData(active)))} — вне списка.`,
+      ? text().over(capital(describe(dragData(active))), describe(dragData(over)))
+      : text().outside(capital(describe(dragData(active)))),
   onDragEnd: ({ active, over }) =>
     over
-      ? `${capital(describe(dragData(active)))} перемещена: ${describe(dragData(over))}.`
-      : `${capital(describe(dragData(active)))} осталась на месте.`,
-  onDragCancel: ({ active }) =>
-    `Перемещение отменено. ${capital(describe(dragData(active)))} осталась на месте.`,
+      ? text().dropped(capital(describe(dragData(active))), describe(dragData(over)))
+      : text().stayed(capital(describe(dragData(active)))),
+  onDragCancel: ({ active }) => text().cancelled(capital(describe(dragData(active)))),
 };
 
 export const screenReaderInstructions: ScreenReaderInstructions = {
-  draggable:
-    'Пробел — взять. Стрелки — переместить. Пробел или Enter — поставить, Escape — отменить.',
+  get draggable() {
+    return text().instructions;
+  },
 };

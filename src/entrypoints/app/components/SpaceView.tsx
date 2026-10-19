@@ -7,7 +7,8 @@ import { emptyFilterText, filterGroups, STATE_FILTERS, stateCounts } from '@/lib
 import type { GroupView, Overview, SpaceView as SpaceData } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
 import { matchesByGroup, type SearchIndex } from '@/lib/app/search';
-import { count, GROUPS, TABS } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 import { type Id, repositories } from '@/lib/db';
 import { arrangeTabStrip, runCommand } from '../commands';
 import { dragData } from '../dnd';
@@ -42,7 +43,48 @@ interface SpaceViewProps {
   index: SearchIndex;
 }
 
+const text = localized({
+  ru: {
+    orderNotSaved: 'Порядок не сохранён — группы остались на своих местах.',
+    spaceActions: 'Действия с пространством',
+    rename: 'Переименовать',
+    inboxStays: '«Входящие» не удаляются',
+    delete: 'Удалить',
+    sideBySide: 'Рядом',
+    collapseAll: 'Свернуть всё',
+    stateFilter: 'Фильтр по состоянию',
+    groups: 'Группы',
+    emptyInbox:
+      'Здесь появятся группы. Нажмите «Свернуть всё» или создайте группу вкладок в Chrome.',
+    emptySpace:
+      'Групп пока нет. Сюда можно перетащить плитку из другого пространства — на его название слева.',
+    search: 'Поиск по группам и вкладкам',
+    searchLabel: 'Поиск по группам и вкладкам этого пространства',
+    paletteHint: 'Поиск по всем пространствам и команды',
+    paletteLabel: 'Открыть командную палитру, Ctrl K',
+  },
+  en: {
+    orderNotSaved: 'The order was not saved — groups stay where they were.',
+    spaceActions: 'Space actions',
+    rename: 'Rename',
+    inboxStays: 'Inbox can’t be deleted',
+    delete: 'Delete',
+    sideBySide: 'Side by side',
+    collapseAll: 'Collapse all',
+    stateFilter: 'Filter by state',
+    groups: 'Groups',
+    emptyInbox: 'Groups will appear here. Press “Collapse all” or create a tab group in Chrome.',
+    emptySpace:
+      'No groups yet. A tile from another space can be dropped here — on its name on the left.',
+    search: 'Search groups and tabs',
+    searchLabel: 'Search the groups and tabs of this space',
+    paletteHint: 'Search all spaces and commands',
+    paletteLabel: 'Open the command palette, Ctrl K',
+  },
+});
+
 export function SpaceView({ view, overview, index }: SpaceViewProps) {
+  const t = text();
   const spaces = overview.spaces.map((item) => item.space);
   const now = useNow();
   const [dialog, setDialog] = useState<OpenDialog>();
@@ -85,7 +127,7 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
         .place(moved.group.id, space.id, ids.indexOf(moved.group.id))
         .then(arrangeTabStrip, () => {
           setDropped(undefined);
-          useUi.getState().showToast('Порядок не сохранён — группы остались на своих местах.');
+          useUi.getState().showToast(text().orderNotSaved);
         });
     },
   });
@@ -95,7 +137,7 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="mr-1 text-xl font-bold tracking-[-0.02em]">{space.name}</h1>
         <DropdownMenu.Root>
-          <DropdownMenu.Trigger aria-label="Действия с пространством" className={BUTTON_ICON}>
+          <DropdownMenu.Trigger aria-label={t.spaceActions} className={BUTTON_ICON}>
             <Ellipsis aria-hidden className="size-4" />
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -104,7 +146,7 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
                 className={MENU_ITEM}
                 onSelect={() => setDialog({ kind: 'renameSpace' })}
               >
-                <Pencil aria-hidden /> Переименовать
+                <Pencil aria-hidden /> {t.rename}
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className={`${MENU_ITEM} text-danger data-highlighted:text-danger`}
@@ -112,7 +154,7 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
                 onSelect={() => setDialog({ kind: 'deleteSpace' })}
               >
                 <Trash aria-hidden />
-                {space.isDefault ? '«Входящие» не удаляются' : 'Удалить'}
+                {space.isDefault ? t.inboxStays : t.delete}
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
@@ -126,7 +168,7 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
           className={BUTTON_SECONDARY}
         >
           <Columns2 aria-hidden className="size-4" />
-          Рядом
+          {t.sideBySide}
         </button>
         <button
           type="button"
@@ -134,12 +176,12 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
           className={BUTTON_PRIMARY}
         >
           <Minimize2 aria-hidden className="size-4" />
-          Свернуть всё
+          {t.collapseAll}
         </button>
       </header>
 
       {groups.length > 0 && (
-        <div role="group" aria-label="Фильтр по состоянию" className="flex flex-wrap gap-2">
+        <div role="group" aria-label={t.stateFilter} className="flex flex-wrap gap-2">
           {STATE_FILTERS.map(({ value, label }) => {
             const pressed = stateFilter === value;
             return (
@@ -161,18 +203,16 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
       <section aria-labelledby="groups-heading" className="flex flex-col gap-3">
         <div className="flex items-baseline gap-2.5">
           <h2 id="groups-heading" className="text-md font-semibold">
-            Группы
+            {t.groups}
           </h2>
           <span className="text-sm text-fg-muted">
-            {count(groups.length, GROUPS)} · {count(tabCount, TABS)}
+            {words().groups(groups.length)} · {words().tabs(tabCount)}
           </span>
         </div>
 
         {groups.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-6 py-10 text-center text-fg-muted">
-            {space.isDefault
-              ? 'Здесь появятся группы. Нажмите «Свернуть всё» или создайте группу вкладок в Chrome.'
-              : 'Групп пока нет. Сюда можно перетащить плитку из другого пространства — на его название слева.'}
+            {space.isDefault ? t.emptyInbox : t.emptySpace}
           </p>
         ) : shown.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-6 py-10 text-center text-fg-muted">
@@ -236,15 +276,15 @@ function SearchField() {
         type="search"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Поиск по группам и вкладкам"
-        aria-label="Поиск по группам и вкладкам этого пространства"
+        placeholder={text().search}
+        aria-label={text().searchLabel}
         className="min-w-0 flex-1 bg-transparent text-fg outline-none placeholder:text-fg-subtle"
       />
       <button
         type="button"
         onClick={() => openPalette(true)}
-        title="Поиск по всем пространствам и команды"
-        aria-label="Открыть командную палитру, Ctrl K"
+        title={text().paletteHint}
+        aria-label={text().paletteLabel}
         className="shrink-0 rounded-sm border border-border px-1.5 font-mono text-[11px] text-fg-muted transition-colors duration-(--duration-fast) hover:text-fg"
       >
         Ctrl K

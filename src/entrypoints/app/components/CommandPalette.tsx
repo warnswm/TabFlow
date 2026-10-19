@@ -11,19 +11,43 @@ import {
 } from '@/lib/app/palette';
 import type { SearchIndex } from '@/lib/app/search';
 import { faviconUrl } from '@/lib/browser-api';
-import { count, TABS } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 import type { GroupState, Id } from '@/lib/db';
 import { runCommand } from '../commands';
 import { navigate } from '../hooks';
 import { useUi } from '../store';
-import { DIALOG_OVERLAY, GROUP_DOT, UNTITLED } from '../ui';
+import { DIALOG_OVERLAY, GROUP_DOT, untitled } from '../ui';
 import { Highlighted } from './Highlighted';
 
-const STATE_LABEL: Record<GroupState, string> = {
-  active: 'Активна',
-  asleep: 'Спит',
-  stowed: 'Убрана',
-};
+const text = localized({
+  ru: {
+    states: { active: 'Активна', asleep: 'Спит', stowed: 'Убрана' } as Record<GroupState, string>,
+    palette: 'Командная палитра',
+    placeholder: 'Группа, вкладка или команда',
+    input: 'Команда или поиск',
+    nothing: (query: string) => `Ничего не найдено по запросу ${query}.`,
+    groups: 'Группы',
+    tabs: 'Вкладки',
+    actions: 'Действия',
+    select: 'выбрать',
+    open: 'открыть',
+    close: 'закрыть',
+  },
+  en: {
+    states: { active: 'Active', asleep: 'Asleep', stowed: 'Stowed' },
+    palette: 'Command palette',
+    placeholder: 'Group, tab or command',
+    input: 'Command or search',
+    nothing: (query: string) => `Nothing found for ${query}.`,
+    groups: 'Groups',
+    tabs: 'Tabs',
+    actions: 'Actions',
+    select: 'select',
+    open: 'open',
+    close: 'close',
+  },
+});
 
 const GROUP_HEADING =
   '[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pt-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:uppercase';
@@ -52,7 +76,7 @@ export function CommandPalette(props: CommandPaletteProps) {
           aria-describedby={undefined}
           className="fixed top-12 left-1/2 z-50 flex w-[min(620px,calc(100vw-32px))] -translate-x-1/2 flex-col overflow-hidden rounded-xl bg-surface-raised shadow-popover data-[state=open]:animate-fade-in"
         >
-          <Dialog.Title className="sr-only">Командная палитра</Dialog.Title>
+          <Dialog.Title className="sr-only">{text().palette}</Dialog.Title>
           {/* Mounted while open only: the query starts empty every time. */}
           <PaletteBody {...props} close={() => setOpen(false)} />
         </Dialog.Content>
@@ -76,14 +100,14 @@ function PaletteBody({
   }
 
   return (
-    <Command shouldFilter={false} loop label="Командная палитра">
+    <Command shouldFilter={false} loop label={text().palette}>
       <div className="flex h-14 items-center gap-3 border-b border-border px-4.5">
         <Search aria-hidden className="size-[18px] shrink-0 text-fg-muted" />
         <Command.Input
           value={query}
           onValueChange={setQuery}
-          placeholder="Группа, вкладка или команда"
-          aria-label="Команда или поиск"
+          placeholder={text().placeholder}
+          aria-label={text().input}
           className="min-w-0 flex-1 bg-transparent text-md text-fg outline-none placeholder:text-fg-subtle"
         />
         <kbd className={KBD}>Esc</kbd>
@@ -91,11 +115,11 @@ function PaletteBody({
 
       <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
         <Command.Empty className="px-2.5 py-6 text-center text-sm text-fg-muted">
-          Ничего не найдено по запросу «{query.trim()}».
+          {text().nothing(words().quote(query.trim()))}
         </Command.Empty>
 
         {groups.length > 0 && (
-          <Command.Group heading="Группы" className={GROUP_HEADING}>
+          <Command.Group heading={text().groups} className={GROUP_HEADING}>
             {groups.map((item) => (
               <GroupItem
                 key={item.group.id}
@@ -108,7 +132,7 @@ function PaletteBody({
         )}
 
         {tabs.length > 0 && (
-          <Command.Group heading="Вкладки" className={GROUP_HEADING}>
+          <Command.Group heading={text().tabs} className={GROUP_HEADING}>
             {tabs.map((item) => (
               <TabItem
                 key={item.tab.id}
@@ -125,7 +149,7 @@ function PaletteBody({
         )}
 
         {actions.length > 0 && (
-          <Command.Group heading="Действия" className={GROUP_HEADING}>
+          <Command.Group heading={text().actions} className={GROUP_HEADING}>
             {actions.map((item) => (
               <Command.Item
                 key={item.id}
@@ -147,9 +171,9 @@ function PaletteBody({
       </Command.List>
 
       <div className="flex items-center gap-4 border-t border-border bg-surface px-4.5 py-2.5 text-xs text-fg-muted">
-        <Hint keys="↑↓">выбрать</Hint>
-        <Hint keys="Enter">открыть</Hint>
-        <Hint keys="Esc">закрыть</Hint>
+        <Hint keys="↑↓">{text().select}</Hint>
+        <Hint keys="Enter">{text().open}</Hint>
+        <Hint keys="Esc">{text().close}</Hint>
       </div>
     </Command>
   );
@@ -177,10 +201,10 @@ function GroupItem({
     <Command.Item value={`group:${group.id}`} onSelect={onSelect} className={ITEM}>
       <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${GROUP_DOT[group.color]}`} />
       <span className="min-w-0 truncate">
-        <Highlighted text={group.title || UNTITLED} terms={terms} />
+        <Highlighted text={group.title || untitled()} terms={terms} />
       </span>
       <span className="ml-auto shrink-0 text-xs text-fg-muted">
-        {space.name} · {STATE_LABEL[group.state]} · {count(tabCount, TABS)}
+        {space.name} · {text().states[group.state]} · {words().tabs(tabCount)}
       </span>
     </Command.Item>
   );
@@ -196,7 +220,7 @@ function TabItem({
   onSelect: () => void;
 }) {
   const { tab, group } = item;
-  const where = group.state === 'active' ? '' : ` · ${STATE_LABEL[group.state].toLowerCase()}`;
+  const where = group.state === 'active' ? '' : ` · ${text().states[group.state].toLowerCase()}`;
   return (
     <Command.Item value={`tab:${tab.id}`} onSelect={onSelect} className={ITEM}>
       <img src={faviconUrl(tab.url, 16)} alt="" className="size-4 shrink-0" />
@@ -204,7 +228,7 @@ function TabItem({
         <Highlighted text={tab.title || tab.url} terms={terms} />
       </span>
       <span className="ml-auto max-w-48 shrink-0 truncate text-xs text-fg-muted">
-        {group.title || UNTITLED}
+        {group.title || untitled()}
         {where}
       </span>
     </Command.Item>

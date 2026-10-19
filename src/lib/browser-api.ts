@@ -428,6 +428,11 @@ export async function openSettingsPage(): Promise<void> {
   await browser.runtime.openOptionsPage();
 }
 
+/** Language of the Chrome interface (`ru`, `en-US`) — for the language setting «Как в Chrome». */
+export function browserLanguage(): string {
+  return browser.i18n.getUILanguage();
+}
+
 /** Version of the installed extension (from the manifest). */
 export function extensionVersion(): string {
   return browser.runtime.getManifest().version;

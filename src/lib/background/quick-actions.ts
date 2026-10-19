@@ -6,9 +6,10 @@
  * A single tab or link without a group goes to the day group in «Входящие» («17 окт · отложено»):
  * one stowed group per day, found by its title and created when missing.
  */
-import { MONTHS_RU } from '../app/time-format';
+import { dayAndMonth } from '../app/time-format';
 import { type BrowserTab, NO_GROUP } from '../browser-api';
 import type { Id, TabGroup, Timestamp } from '../db';
+import { localized } from '../i18n';
 import { CommandError, type CommandResult } from '../messages';
 import { isSleepable } from '../summary';
 import { collapsedGroupTitle } from './collapse';
@@ -25,10 +26,14 @@ import { syncGroup } from './mirror';
 import { moveIntoGroup, moveTab, openInGroup } from './move-tab';
 import { isSaveableTab, isSaveableUrl, normalizeUrl, splitDuplicates } from './tab-rules';
 
-/** «17 окт · отложено» (local date). */
+const text = localized({
+  ru: { dayGroup: (day: string) => `${day} · отложено` },
+  en: { dayGroup: (day: string) => `${day} · saved for later` },
+});
+
+/** «17 окт · отложено» / “Oct 17 · saved for later” (local date). */
 export function dayGroupTitle(time: Timestamp): string {
-  const date = new Date(time);
-  return `${date.getDate()} ${MONTHS_RU[date.getMonth()]} · отложено`;
+  return text().dayGroup(dayAndMonth(time));
 }
 
 /** The day group in «Входящие»; created stowed when there is none yet. */

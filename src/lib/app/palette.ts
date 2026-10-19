@@ -3,6 +3,8 @@
  * and actions — fixed ones plus actions with the best found group.
  */
 import type { GroupState, Id, SavedTab, Space, TabGroup } from '../db/models';
+import { localized } from '../i18n';
+import { words } from '../i18n/words';
 import type { Overview } from './overview';
 import { normalizeText, type SearchIndex } from './search';
 
@@ -42,10 +44,31 @@ export interface PaletteContents {
   terms: string[];
 }
 
-const UNTITLED = 'Без названия';
+const text = localized({
+  ru: {
+    sleep: (name: string) => `Усыпить группу ${name}`,
+    stow: (name: string) => `Убрать группу ${name} в TabFlow`,
+    wake: (name: string) => `Разбудить группу ${name}`,
+    restore: (name: string) => `Вернуть группу ${name} на панель`,
+    collapseAll: 'Свернуть всё',
+    goTo: (name: string) => `Перейти в ${name}`,
+    trash: 'Корзина',
+    newSpace: 'Новое пространство',
+  },
+  en: {
+    sleep: (name: string) => `Put group ${name} to sleep`,
+    stow: (name: string) => `Stow group ${name} in TabFlow`,
+    wake: (name: string) => `Wake group ${name}`,
+    restore: (name: string) => `Restore group ${name} to the tab strip`,
+    collapseAll: 'Collapse all',
+    goTo: (name: string) => `Go to ${name}`,
+    trash: 'Trash',
+    newSpace: 'New space',
+  },
+});
 
-/** «Исследование React». */
-export const quoted = (title: string) => `«${title || UNTITLED}»`;
+/** «Исследование React» / “React research”. */
+const quoted = (title: string) => words().quote(title || words().untitled);
 
 /** Actions with a found group, by its state. */
 function groupActions(group: TabGroup): PaletteActionItem[] {
@@ -55,32 +78,28 @@ function groupActions(group: TabGroup): PaletteActionItem[] {
     label,
     action: { type, group },
   });
+  const t = text();
   const byState: Record<GroupState, PaletteActionItem[]> = {
-    active: [
-      item('sleepGroup', `Усыпить группу ${name}`),
-      item('stowGroup', `Убрать группу ${name} в TabFlow`),
-    ],
-    asleep: [
-      item('restoreGroup', `Разбудить группу ${name}`),
-      item('stowGroup', `Убрать группу ${name} в TabFlow`),
-    ],
-    stowed: [item('restoreGroup', `Вернуть группу ${name} на панель`)],
+    active: [item('sleepGroup', t.sleep(name)), item('stowGroup', t.stow(name))],
+    asleep: [item('restoreGroup', t.wake(name)), item('stowGroup', t.stow(name))],
+    stowed: [item('restoreGroup', t.restore(name))],
   };
   return byState[group.state];
 }
 
 function fixedActions(overview: Overview, currentSpaceId?: Id): PaletteActionItem[] {
+  const t = text();
   return [
-    { id: 'collapseAll', label: 'Свернуть всё', action: { type: 'collapseAll' } },
+    { id: 'collapseAll', label: t.collapseAll, action: { type: 'collapseAll' } },
     ...overview.spaces
       .filter(({ space }) => space.id !== currentSpaceId)
       .map(({ space }) => ({
         id: `space:${space.id}`,
-        label: `Перейти в ${quoted(space.name)}`,
+        label: t.goTo(quoted(space.name)),
         action: { type: 'goToSpace', spaceId: space.id } as const,
       })),
-    { id: 'openTrash', label: 'Корзина', action: { type: 'openTrash' } },
-    { id: 'newSpace', label: 'Новое пространство', action: { type: 'newSpace' } },
+    { id: 'openTrash', label: t.trash, action: { type: 'openTrash' } },
+    { id: 'newSpace', label: t.newSpace, action: { type: 'newSpace' } },
   ];
 }
 

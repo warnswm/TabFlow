@@ -1,7 +1,8 @@
 import { AlertDialog, Dialog } from 'radix-ui';
 import { type FormEvent, useState } from 'react';
 import type { SpaceView } from '@/lib/app/overview';
-import { count, GROUPS, plural } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { pluralEn, pluralRu, words } from '@/lib/i18n/words';
 import { repositories, type Space } from '@/lib/db';
 import { runCommand } from '../commands';
 import { navigate } from '../hooks';
@@ -13,6 +14,44 @@ import {
   DIALOG_OVERLAY,
   INPUT,
 } from '../ui';
+
+const text = localized({
+  ru: {
+    rename: 'Переименовать пространство',
+    create: 'Новое пространство',
+    about: 'Пространство собирает группы по теме: «Работа», «Учёба», «Личное».',
+    name: 'Название',
+    example: 'Работа',
+    cancel: 'Отмена',
+    save: 'Сохранить',
+    createButton: 'Создать',
+    deleteTitle: (name: string) => `Удалить пространство ${name}?`,
+    empty: 'Пространство пустое.',
+    withGroups: (n: number) =>
+      `Вместе с ним в корзину ${pluralRu(n, ['уйдёт', 'уйдут', 'уйдут'])} ${words().groups(n)}.`,
+    openClosing: (n: number) =>
+      ` ${n} ${pluralRu(n, ['открытая группа закроется', 'открытые группы закроются', 'открытых групп закроются'])} — ссылки сохранятся.`,
+    trashNote: 'Вернуть можно из корзины в течение 30 дней.',
+    delete: 'Удалить',
+  },
+  en: {
+    rename: 'Rename space',
+    create: 'New space',
+    about: 'A space gathers groups by topic: “Work”, “Study”, “Personal”.',
+    name: 'Name',
+    example: 'Work',
+    cancel: 'Cancel',
+    save: 'Save',
+    createButton: 'Create',
+    deleteTitle: (name: string) => `Delete space ${name}?`,
+    empty: 'The space is empty.',
+    withGroups: (n: number) => `${words().groups(n)} will go to Trash with it.`,
+    openClosing: (n: number) =>
+      ` ${n} open ${pluralEn(n, ['group closes', 'groups close'])} — links are kept.`,
+    trashNote: 'It can be restored from Trash within 30 days.',
+    delete: 'Delete',
+  },
+});
 
 interface DialogProps {
   open: boolean;
@@ -27,11 +66,9 @@ export function SpaceNameDialog({ space, open, onOpenChange }: DialogProps & { s
         <Dialog.Overlay className={DIALOG_OVERLAY} />
         <Dialog.Content className={DIALOG_CONTENT}>
           <Dialog.Title className="text-md font-semibold">
-            {space ? 'Переименовать пространство' : 'Новое пространство'}
+            {space ? text().rename : text().create}
           </Dialog.Title>
-          <Dialog.Description className="text-sm text-fg-muted">
-            Пространство собирает группы по теме: «Работа», «Учёба», «Личное».
-          </Dialog.Description>
+          <Dialog.Description className="text-sm text-fg-muted">{text().about}</Dialog.Description>
           <SpaceNameForm
             key={space?.id ?? 'new'}
             space={space}
@@ -62,11 +99,11 @@ function SpaceNameForm({ space, onDone }: { space?: Space; onDone: () => void })
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5 text-sm text-fg-muted">
-        Название
+        {text().name}
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Работа"
+          placeholder={text().example}
           maxLength={60}
           autoFocus
           required
@@ -75,10 +112,10 @@ function SpaceNameForm({ space, onDone }: { space?: Space; onDone: () => void })
       </label>
       <div className="flex justify-end gap-2">
         <Dialog.Close type="button" className={BUTTON_SECONDARY}>
-          Отмена
+          {text().cancel}
         </Dialog.Close>
         <button type="submit" disabled={!trimmed} className={BUTTON_PRIMARY}>
-          {space ? 'Сохранить' : 'Создать'}
+          {space ? text().save : text().createButton}
         </button>
       </div>
     </form>
@@ -109,22 +146,19 @@ export function DeleteSpaceDialog({
         <AlertDialog.Overlay className={DIALOG_OVERLAY} />
         <AlertDialog.Content className={DIALOG_CONTENT}>
           <AlertDialog.Title className="text-md font-semibold">
-            Удалить пространство «{space.name}»?
+            {text().deleteTitle(words().quote(space.name))}
           </AlertDialog.Title>
           <AlertDialog.Description className="flex flex-col gap-2 text-sm text-fg-muted">
             <span>
-              {groups.length === 0
-                ? 'Пространство пустое.'
-                : `Вместе с ним в корзину ${plural(groups.length, ['уйдёт', 'уйдут', 'уйдут'])} ${count(groups.length, GROUPS)}.`}
-              {open_ > 0 &&
-                ` ${open_} ${plural(open_, ['открытая группа закроется', 'открытые группы закроются', 'открытых групп закроются'])} — ссылки сохранятся.`}
+              {groups.length === 0 ? text().empty : text().withGroups(groups.length)}
+              {open_ > 0 && text().openClosing(open_)}
             </span>
-            <span>Вернуть можно из корзины в течение 30 дней.</span>
+            <span>{text().trashNote}</span>
           </AlertDialog.Description>
           <div className="flex justify-end gap-2">
-            <AlertDialog.Cancel className={BUTTON_SECONDARY}>Отмена</AlertDialog.Cancel>
+            <AlertDialog.Cancel className={BUTTON_SECONDARY}>{text().cancel}</AlertDialog.Cancel>
             <AlertDialog.Action className={BUTTON_DANGER} onClick={() => void confirm()}>
-              Удалить
+              {text().delete}
             </AlertDialog.Action>
           </div>
         </AlertDialog.Content>

@@ -2,30 +2,31 @@
  * Keyboard shortcuts (`commands` in the manifest — `wxt.config.ts` takes them from here).
  * Chrome accepts at most 4 suggested keys; the author can change them at
  * chrome://extensions/shortcuts. The popup and the queue have no key by default.
- * No runtime imports: the WXT config loads this file.
+ * Descriptions are messages of `public/_locales` (Chrome shows them in its language); the settings
+ * page has its own texts (`app/settings-view.ts`). No runtime imports: the WXT config loads this file.
  */
 import type { Command } from './messages';
 
 export const HOTKEYS = {
   'collapse-all': {
     suggested_key: { default: 'Ctrl+Shift+S', mac: 'Command+Shift+S' },
-    description: 'Свернуть всё',
+    description: '__MSG_cmdCollapseAll__',
   },
   'stow-current': {
     suggested_key: { default: 'Alt+Shift+S' },
-    description: 'Убрать текущую группу или вкладку в TabFlow',
+    description: '__MSG_cmdStowCurrent__',
   },
   'sleep-current': {
     suggested_key: { default: 'Alt+Shift+Z' },
-    description: 'Усыпить текущую группу',
+    description: '__MSG_cmdSleepCurrent__',
   },
   'open-app': {
     suggested_key: { default: 'Alt+Shift+M' },
-    description: 'Открыть TabFlow',
+    description: '__MSG_cmdOpenApp__',
   },
-  'queue-current': { description: 'Добавить текущую вкладку в очередь «на потом»' },
-  'open-queue': { description: 'Открыть очередь в боковой панели' },
-  _execute_action: { description: 'Открыть окно TabFlow на панели расширений' },
+  'queue-current': { description: '__MSG_cmdQueueCurrent__' },
+  'open-queue': { description: '__MSG_cmdOpenQueue__' },
+  _execute_action: { description: '__MSG_cmdOpenPopup__' },
 };
 
 export type HotkeyName = keyof typeof HOTKEYS;

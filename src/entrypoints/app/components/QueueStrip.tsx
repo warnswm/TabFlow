@@ -8,12 +8,18 @@ import { useLiveQuery } from '@/lib/use-live-query';
 import { runCommand } from '../commands';
 import { BUTTON_LINK } from '../ui';
 import { VideoThumb } from './VideoThumb';
+import { localized } from '@/lib/i18n';
 
 const listQueue = () => repositories.queue.list('queued');
 
 /** Cards are at least this wide; one row shows as many as fit, the whole queue is in the panel. */
 const CARD_MIN_WIDTH = 240;
 const CARD_GAP = 12;
+
+const text = localized({
+  ru: { queue: 'Очередь', today: 'На сегодня:', all: 'Вся очередь ·' },
+  en: { queue: 'Queue', today: 'Today:', all: 'Whole queue ·' },
+});
 
 /** «Очередь · На сегодня: 3 видео · 47 мин · Вся очередь · 12» and one row of the first videos. */
 export function QueueStrip() {
@@ -41,10 +47,10 @@ export function QueueStrip() {
     <section aria-labelledby="queue-heading" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-2.5">
         <h2 id="queue-heading" className="text-md font-semibold">
-          Очередь
+          {text().queue}
         </h2>
         <span className="text-sm text-fg-muted">
-          На сегодня: <span className="font-mono">{totalText(todayPlan(queued))}</span>
+          {text().today} <span className="font-mono">{totalText(todayPlan(queued))}</span>
         </span>
         {supportsSidePanel() && windowId !== undefined && (
           <button
@@ -53,7 +59,7 @@ export function QueueStrip() {
             onClick={() => void openSidePanel(windowId)}
             className={`ml-auto flex items-center gap-1 text-sm ${BUTTON_LINK}`}
           >
-            Вся очередь · <span className="font-mono">{queued.length}</span>
+            {text().all} <span className="font-mono">{queued.length}</span>
             <ArrowUpRight aria-hidden className="size-3.5" />
           </button>
         )}

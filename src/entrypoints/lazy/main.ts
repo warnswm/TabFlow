@@ -3,6 +3,7 @@
  * the tab waits discarded, and goes to the real page as soon as the tab is opened.
  */
 import { cachedFaviconUrl, parsePlaceholderUrl } from '@/lib/placeholder';
+import { loadLanguage } from '@/lib/settings';
 
 const pageUrl = location.href.split('#')[0] ?? '';
 const target = parsePlaceholderUrl(pageUrl, location.href);
@@ -32,6 +33,15 @@ if (target) {
       go();
     });
   }
+
+  // The page is in Russian; English when the setting says so (the tab is rarely seen anyway).
+  void loadLanguage().then((language) => {
+    if (language !== 'en') return;
+    document.documentElement.lang = 'en';
+    const hint = document.getElementById('hint');
+    if (hint) hint.textContent = 'The page loads when the tab is opened.';
+    if (open) open.textContent = 'Open';
+  });
 
   // Opened by the user (or loaded while visible): go to the real page right away.
   if (document.visibilityState === 'visible') go();

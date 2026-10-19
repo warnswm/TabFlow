@@ -2,9 +2,15 @@ import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useUi } from '../store';
 import { BUTTON_ICON, BUTTON_LINK } from '../ui';
+import { localized } from '@/lib/i18n';
 
 /** Long enough to read the text and press «Отменить»; paused while the pointer is over it. */
 const TOAST_MS = 8000;
+
+const text = localized({
+  ru: { undo: 'Отменить', close: 'Закрыть уведомление' },
+  en: { undo: 'Undo', close: 'Dismiss' },
+});
 
 export function Toaster() {
   const toast = useUi((state) => state.toast);
@@ -41,12 +47,12 @@ export function Toaster() {
               }}
               className={`shrink-0 ${BUTTON_LINK}`}
             >
-              Отменить
+              {text().undo}
             </button>
           )}
           <button
             type="button"
-            aria-label="Закрыть уведомление"
+            aria-label={text().close}
             onClick={() => dismiss(toast.id)}
             className={BUTTON_ICON}
           >

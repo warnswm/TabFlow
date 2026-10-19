@@ -8,12 +8,13 @@ import type { GroupMatch } from '@/lib/app/search';
 import { timeAgo } from '@/lib/app/time-format';
 import { youtubeThumbnailUrl, youtubeVideoId } from '@/lib/app/youtube';
 import { faviconUrl } from '@/lib/browser-api';
-import { count, plural, TABS } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { pluralEn, pluralRu, words } from '@/lib/i18n/words';
 import type { GroupState, SavedTab, Space, TabGroup } from '@/lib/db';
 import { runCommand } from '../commands';
 import type { DragData } from '../dnd';
 import { useUi } from '../store';
-import { BUTTON_ICON, BUTTON_LINK, GROUP_DOT, UNTITLED } from '../ui';
+import { BUTTON_ICON, BUTTON_LINK, GROUP_DOT, untitled } from '../ui';
 import { GroupMenu } from './GroupMenu';
 import { Highlighted } from './Highlighted';
 
@@ -27,15 +28,46 @@ const TILE: Record<GroupState, string> = {
 /** How long a tile chosen in the palette stays outlined. */
 const FOCUS_MS = 2000;
 
+const text = localized({
+  ru: {
+    active: 'Активна',
+    asleepSince: (since: string) => `Уснула ${since}`,
+    stowedSince: (since: string) => `Убрана ${since}`,
+    tile: 'плитка',
+    links: (title: string) => `Ссылки группы ${title}`,
+    move: (title: string) => `Переместить ${title}`,
+    wake: 'Разбудить',
+    restore: 'Вернуть',
+    linkHits: (n: number) =>
+      `${n} ${pluralRu(n, ['ссылка совпадает', 'ссылки совпадают', 'ссылок совпадают'])}`,
+    asleep: 'Спит',
+    stowed: 'Убрана в TabFlow',
+  },
+  en: {
+    active: 'Active',
+    asleepSince: (since: string) => `Asleep ${since}`,
+    stowedSince: (since: string) => `Stowed ${since}`,
+    tile: 'tile',
+    links: (title: string) => `Links of group ${title}`,
+    move: (title: string) => `Move ${title}`,
+    wake: 'Wake',
+    restore: 'Restore',
+    linkHits: (n: number) => `${n} ${pluralEn(n, ['link matches', 'links match'])}`,
+    asleep: 'Asleep',
+    stowed: 'Stowed in TabFlow',
+  },
+});
+
 function statusText(group: TabGroup, now: number): string {
+  const t = text();
   const since = timeAgo(group.stateChangedAt ?? group.updatedAt, now);
   switch (group.state) {
     case 'active':
-      return 'Активна';
+      return t.active;
     case 'asleep':
-      return `Уснула ${since}`;
+      return t.asleepSince(since);
     case 'stowed':
-      return `Убрана ${since}`;
+      return t.stowedSince(since);
   }
 }
 
@@ -58,7 +90,7 @@ export function GroupTile(props: GroupTileProps) {
   const restoreMode = useUi((state) => state.restoreMode);
   const focused = useUi((state) => state.focusGroupId === group.id);
   const previewRef = useRef<HTMLButtonElement>(null);
-  const title = group.title || UNTITLED;
+  const title = group.title || untitled();
   const data: DragData = { type: 'group', group };
   const {
     attributes,
@@ -72,7 +104,7 @@ export function GroupTile(props: GroupTileProps) {
     id: group.id,
     data,
     disabled: !sortable,
-    attributes: { roleDescription: 'плитка' },
+    attributes: { roleDescription: text().tile },
   });
 
   // Chosen in the palette: scrolled into view, focused and outlined for a moment.
@@ -105,7 +137,7 @@ export function GroupTile(props: GroupTileProps) {
         ref={previewRef}
         type="button"
         onClick={onOpenLinks}
-        aria-label={`Ссылки группы «${title}»`}
+        aria-label={text().links(words().quote(title))}
         className="relative aspect-video bg-bg-sunken text-left"
       >
         <TilePreview group={group} tabs={tabs} />
@@ -126,7 +158,7 @@ export function GroupTile(props: GroupTileProps) {
                 ref={setActivatorNodeRef}
                 type="button"
                 {...attributes}
-                aria-label={`Переместить «${title}»`}
+                aria-label={text().move(words().quote(title))}
                 className={`${BUTTON_ICON} cursor-grab opacity-0 group-hover/tile:opacity-100 focus-visible:opacity-100`}
               >
                 <GripVertical aria-hidden className="size-4" />
@@ -148,20 +180,17 @@ export function GroupTile(props: GroupTileProps) {
           <span className="truncate">{statusText(group, now)}</span>
           {group.state === 'asleep' && (
             <button type="button" onClick={restore} className={`ml-auto ${BUTTON_LINK}`}>
-              Разбудить
+              {text().wake}
             </button>
           )}
           {group.state === 'stowed' && (
             <button type="button" onClick={restore} className={`ml-auto ${BUTTON_LINK}`}>
-              Вернуть
+              {text().restore}
             </button>
           )}
         </div>
         {linkHits > 0 && (
-          <p className="pl-[18px] text-xs text-fg-subtle">
-            {linkHits}{' '}
-            {plural(linkHits, ['ссылка совпадает', 'ссылки совпадают', 'ссылок совпадают'])}
-          </p>
+          <p className="pl-[18px] text-xs text-fg-subtle">{text().linkHits(linkHits)}</p>
         )}
       </div>
     </article>
@@ -179,7 +208,7 @@ export function GroupDragChip({ view, target }: { view: GroupView; target?: Spac
       className={`flex h-11 w-[260px] cursor-grabbing items-center gap-2.5 rounded-md border bg-surface-raised px-3 shadow-drag ${target ? 'border-accent' : 'border-border'}`}
     >
       <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${GROUP_DOT[group.color]}`} />
-      <span className="min-w-0 flex-1 truncate font-semibold">{group.title || UNTITLED}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold">{group.title || untitled()}</span>
       {target ? (
         <span className="flex max-w-[45%] shrink-0 items-center gap-1 text-sm font-semibold text-accent">
           <ArrowRight aria-hidden className="size-4 shrink-0" />
@@ -197,13 +226,13 @@ function TilePreview({ group, tabs }: { group: TabGroup; tabs: readonly SavedTab
     <>
       <Preview tabs={tabs} dimmed={group.state !== 'active'} />
       <span className="absolute right-2 bottom-2 rounded-sm bg-bg-sunken/85 px-1.5 font-mono text-[11px] leading-4 text-fg">
-        {count(tabs.length, TABS)}
+        {words().tabs(tabs.length)}
       </span>
       {group.state === 'asleep' && (
-        <StateBadge icon={<Moon aria-hidden className="size-3.5" />} text="Спит" />
+        <StateBadge icon={<Moon aria-hidden className="size-3.5" />} text={text().asleep} />
       )}
       {group.state === 'stowed' && (
-        <StateBadge icon={<Archive aria-hidden className="size-3.5" />} text="Убрана в TabFlow" />
+        <StateBadge icon={<Archive aria-hidden className="size-3.5" />} text={text().stowed} />
       )}
     </>
   );

@@ -33,6 +33,8 @@ import {
 import { accessPatterns, missingPatterns } from '@/lib/queue/site-access';
 import { siteLabel, videoKey } from '@/lib/queue/video-url';
 import { isSaveableUrl } from '@/lib/background/tab-rules';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 import { useLiveQuery } from '@/lib/use-live-query';
 import { runCommand } from '../app/commands';
 import { VideoThumb } from '../app/components/VideoThumb';
@@ -43,6 +45,79 @@ import { useActiveTab, useGrantedSites } from './hooks';
 const loadQueue = () =>
   Promise.all([repositories.queue.list('queued'), repositories.queue.list('watched')]);
 
+const text = localized({
+  ru: {
+    picked: (n: string) => `Взято видео #${n}.`,
+    over: (n: string) => `Над местом #${n}.`,
+    outside: 'Вне очереди.',
+    dropped: (n: string) => `Видео поставлено на место #${n}.`,
+    inPlace: 'Видео на месте.',
+    cancelled: 'Перемещение отменено. Видео на месте.',
+    today: 'На сегодня',
+    queueEmpty: 'очередь пуста',
+    freeTime: 'Свободное время',
+    queue: 'Очередь',
+    empty:
+      'Очередь пуста. Видео добавляется кнопкой ниже или из меню страницы — «В очередь «на потом»».',
+    dragHint: 'Перетаскивайте видео, чтобы менять приоритет',
+    shortHint: 'Сначала короткие — приоритет меняется в порядке «По приоритету»',
+    video: 'видео',
+    move: (name: string, priority: number) => `Переместить видео ${name}, сейчас #${priority}`,
+    openVideo: 'Открыть видео',
+    fits: ' · помещается в свободное время',
+    actions: (name: string) => `Действия с видео ${name}`,
+    open: 'Открыть',
+    toTop: 'Наверх очереди',
+    watched: 'Просмотрено',
+    allowAccess: 'Разрешить доступ к сайту',
+    remove: 'Удалить из очереди',
+    accessHint: 'Длительность и позиция видео читаются только на разрешённых сайтах',
+    access: 'Доступ',
+    backToQueue: 'Вернуть в очередь',
+    backToQueueNamed: (name: string) => `Вернуть в очередь ${name}`,
+    delete: 'Удалить',
+    deleteNamed: (name: string) => `Удалить ${name}`,
+    currentQueued: (n: number) => `Текущая вкладка в очереди · #${n}`,
+    addCurrent: 'Добавить текущую вкладку',
+    browserPage: 'Служебная страница — не добавляется',
+  },
+  en: {
+    picked: (n: string) => `Picked up video #${n}.`,
+    over: (n: string) => `Over place #${n}.`,
+    outside: 'Outside the queue.',
+    dropped: (n: string) => `Video moved to place #${n}.`,
+    inPlace: 'The video stays in place.',
+    cancelled: 'Move cancelled. The video stays in place.',
+    today: 'Today',
+    queueEmpty: 'queue is empty',
+    freeTime: 'Free time',
+    queue: 'Queue',
+    empty:
+      'Queue is empty. Videos are added with the button below or from the page menu — “Add to watch-later queue”.',
+    dragHint: 'Drag videos to change their priority',
+    shortHint: 'Shortest first — priority changes in the “By priority” order',
+    video: 'video',
+    move: (name: string, priority: number) => `Move video ${name}, now #${priority}`,
+    openVideo: 'Open video',
+    fits: ' · fits the free time',
+    actions: (name: string) => `Actions for video ${name}`,
+    open: 'Open',
+    toTop: 'Move to the top',
+    watched: 'Watched',
+    allowAccess: 'Allow access to the site',
+    remove: 'Remove from the queue',
+    accessHint: 'Duration and position are read only on sites with access',
+    access: 'Access',
+    backToQueue: 'Back to the queue',
+    backToQueueNamed: (name: string) => `Back to the queue: ${name}`,
+    delete: 'Delete',
+    deleteNamed: (name: string) => `Delete ${name}`,
+    currentQueued: (n: number) => `The current tab is queued · #${n}`,
+    addCurrent: 'Add the current tab',
+    browserPage: 'Browser page — not added',
+  },
+});
+
 /** «Просмотрено» shows the latest ones. */
 const WATCHED_SHOWN = 20;
 
@@ -52,6 +127,7 @@ const CHIP_ON = 'border-accent-soft bg-accent-soft text-accent';
 const CHIP_OFF = 'border-border text-fg-muted hover:text-fg';
 
 export function QueuePanel({ sort }: { sort: QueueSort }) {
+  const t = text();
   const data = useLiveQuery(loadQueue);
   const activeTab = useActiveTab();
   const granted = useGrantedSites();
@@ -89,28 +165,27 @@ export function QueuePanel({ sort }: { sort: QueueSort }) {
   }
 
   const announcements: Announcements = {
-    onDragStart: ({ active }) => `Взято видео #${priorityOf.get(String(active.id))}.`,
-    onDragOver: ({ over }) =>
-      over ? `Над местом #${priorityOf.get(String(over.id))}.` : 'Вне очереди.',
+    onDragStart: ({ active }) => t.picked(String(priorityOf.get(String(active.id)))),
+    onDragOver: ({ over }) => (over ? t.over(String(priorityOf.get(String(over.id)))) : t.outside),
     onDragEnd: ({ over }) =>
-      over ? `Видео поставлено на место #${priorityOf.get(String(over.id))}.` : 'Видео на месте.',
-    onDragCancel: () => 'Перемещение отменено. Видео на месте.',
+      over ? t.dropped(String(priorityOf.get(String(over.id)))) : t.inPlace,
+    onDragCancel: () => t.cancelled,
   };
 
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <section
-          aria-label="На сегодня"
+          aria-label={t.today}
           className="mx-4 flex flex-col gap-2.5 rounded-lg border border-border bg-surface px-3.5 py-3"
         >
           <p className="flex items-baseline gap-2">
-            <span className="text-[13px] text-fg-muted">На сегодня</span>
+            <span className="text-[13px] text-fg-muted">{t.today}</span>
             <span className="font-mono text-[13px]">
-              {ordered.length === 0 ? 'очередь пуста' : totalText(todayPlan(ordered))}
+              {ordered.length === 0 ? t.queueEmpty : totalText(todayPlan(ordered))}
             </span>
           </p>
-          <div role="group" aria-label="Свободное время" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label={t.freeTime} className="flex flex-wrap gap-1.5">
             {FREE_TIME_SLOTS.map((item) => (
               <button
                 key={item.minutes}
@@ -130,7 +205,7 @@ export function QueuePanel({ sort }: { sort: QueueSort }) {
 
         <div className="flex items-baseline gap-2 px-4 pt-3.5 pb-1.5">
           <h2 className="text-[13px] font-semibold tracking-[0.06em] text-fg-subtle uppercase">
-            Очередь
+            {t.queue}
           </h2>
           {total.count > 0 && (
             <span className="font-mono text-xs text-fg-subtle">
@@ -142,8 +217,7 @@ export function QueuePanel({ sort }: { sort: QueueSort }) {
 
         {ordered.length === 0 ? (
           <p className="mx-4 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">
-            Очередь пуста. Видео добавляется кнопкой ниже или из меню страницы — «В очередь «на
-            потом»».
+            {t.empty}
           </p>
         ) : (
           <DndContext
@@ -185,11 +259,7 @@ export function QueuePanel({ sort }: { sort: QueueSort }) {
 
       <footer className="flex flex-col gap-2 border-t border-border px-4 pt-3 pb-4">
         <AddCurrentTab tab={activeTab} queued={ordered} />
-        <p className="text-center text-xs text-fg-subtle">
-          {canDrag
-            ? 'Перетаскивайте видео, чтобы менять приоритет'
-            : 'Сначала короткие — приоритет меняется в порядке «По приоритету»'}
-        </p>
+        <p className="text-center text-xs text-fg-subtle">{canDrag ? t.dragHint : t.shortHint}</p>
       </footer>
     </>
   );
@@ -218,7 +288,8 @@ function VideoRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, attributes: { roleDescription: 'видео' } });
+  } = useSortable({ id: item.id, attributes: { roleDescription: text().video } });
+  const t = text();
   const share = progressShare(item);
   // The watched share first: the channel may be cut off.
   const meta = [
@@ -244,7 +315,7 @@ function VideoRow({
           type="button"
           {...attributes}
           {...listeners}
-          aria-label={`Переместить видео «${name}», сейчас #${priority}`}
+          aria-label={t.move(words().quote(name), priority)}
           className={`${BUTTON_ICON} w-5 cursor-grab text-fg-subtle`}
         >
           <GripVertical aria-hidden className="size-3.5" />
@@ -256,7 +327,7 @@ function VideoRow({
       <button
         type="button"
         onClick={() => void runCommand({ type: 'openVideo', itemId: item.id }, { quiet: true })}
-        title="Открыть видео"
+        title={t.openVideo}
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left"
       >
         <VideoThumb item={item} className="h-[58px] w-[104px] rounded-md" />
@@ -264,14 +335,14 @@ function VideoRow({
           <span className="line-clamp-2 text-[13px] leading-[18px] font-semibold">{name}</span>
           <span className="truncate text-xs text-fg-muted">
             {meta.join(' · ')}
-            {picked && <span className="sr-only"> · помещается в свободное время</span>}
+            {picked && <span className="sr-only">{t.fits}</span>}
           </span>
         </span>
       </button>
 
       <div className="flex shrink-0 flex-col items-end gap-1">
         <DropdownMenu.Root>
-          <DropdownMenu.Trigger aria-label={`Действия с видео «${name}»`} className={BUTTON_ICON}>
+          <DropdownMenu.Trigger aria-label={t.actions(words().quote(name))} className={BUTTON_ICON}>
             <Ellipsis aria-hidden className="size-4" />
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -282,7 +353,7 @@ function VideoRow({
                   void runCommand({ type: 'openVideo', itemId: item.id }, { quiet: true })
                 }
               >
-                <Play aria-hidden /> Открыть
+                <Play aria-hidden /> {t.open}
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className={MENU_ITEM}
@@ -291,7 +362,7 @@ function VideoRow({
                   void runCommand({ type: 'moveVideo', itemId: item.id, index: 0 }, { quiet: true })
                 }
               >
-                <ArrowUpToLine aria-hidden /> Наверх очереди
+                <ArrowUpToLine aria-hidden /> {t.toTop}
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className={MENU_ITEM}
@@ -299,11 +370,11 @@ function VideoRow({
                   void runCommand({ type: 'setWatched', itemId: item.id, watched: true })
                 }
               >
-                <Check aria-hidden /> Просмотрено
+                <Check aria-hidden /> {t.watched}
               </DropdownMenu.Item>
               {needsAccess && (
                 <DropdownMenu.Item className={MENU_ITEM} onSelect={allowAccess}>
-                  <KeyRound aria-hidden /> Разрешить доступ к сайту
+                  <KeyRound aria-hidden /> {t.allowAccess}
                 </DropdownMenu.Item>
               )}
               <DropdownMenu.Separator className={MENU_SEPARATOR} />
@@ -311,7 +382,7 @@ function VideoRow({
                 className={`${MENU_ITEM} text-danger data-highlighted:text-danger`}
                 onSelect={() => void runCommand({ type: 'removeVideo', itemId: item.id })}
               >
-                <Trash aria-hidden /> Удалить из очереди
+                <Trash aria-hidden /> {t.remove}
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
@@ -320,10 +391,10 @@ function VideoRow({
           <button
             type="button"
             onClick={allowAccess}
-            title="Длительность и позиция видео читаются только на разрешённых сайтах"
+            title={t.accessHint}
             className={`${BUTTON_LINK} text-[11px]`}
           >
-            Доступ
+            {t.access}
           </button>
         )}
       </div>
@@ -332,6 +403,7 @@ function VideoRow({
 }
 
 function WatchedList({ items }: { items: readonly QueueItem[] }) {
+  const t = text();
   const latest = [...items]
     .sort((a, b) => (b.watchedAt ?? 0) - (a.watchedAt ?? 0))
     .slice(0, WATCHED_SHOWN);
@@ -343,7 +415,7 @@ function WatchedList({ items }: { items: readonly QueueItem[] }) {
           className="size-3.5 self-center text-fg-subtle transition-transform group-open/watched:rotate-90"
         />
         <span className="text-[13px] font-semibold tracking-[0.06em] text-fg-subtle uppercase">
-          Просмотрено
+          {t.watched}
         </span>
         <span className="font-mono text-xs text-fg-subtle">{items.length}</span>
       </summary>
@@ -355,8 +427,8 @@ function WatchedList({ items }: { items: readonly QueueItem[] }) {
             </span>
             <button
               type="button"
-              aria-label={`Вернуть в очередь «${item.title}»`}
-              title="Вернуть в очередь"
+              aria-label={t.backToQueueNamed(words().quote(item.title))}
+              title={t.backToQueue}
               onClick={() =>
                 void runCommand({ type: 'setWatched', itemId: item.id, watched: false })
               }
@@ -366,8 +438,8 @@ function WatchedList({ items }: { items: readonly QueueItem[] }) {
             </button>
             <button
               type="button"
-              aria-label={`Удалить «${item.title}»`}
-              title="Удалить"
+              aria-label={t.deleteNamed(words().quote(item.title))}
+              title={t.delete}
               onClick={() => void runCommand({ type: 'removeVideo', itemId: item.id })}
               className={BUTTON_ICON}
             >
@@ -388,6 +460,7 @@ function AddCurrentTab({
   tab: BrowserTab | undefined;
   queued: readonly QueueItem[];
 }) {
+  const t = text();
   const key = tab && videoKey(tab.url);
   const index = key === undefined ? -1 : queued.findIndex((item) => videoKey(item.url) === key);
   const queueable = tab !== undefined && isSaveableUrl(tab.url);
@@ -409,12 +482,12 @@ function AddCurrentTab({
       {index >= 0 ? (
         <>
           <Check aria-hidden className="size-4" strokeWidth={2.4} />
-          Текущая вкладка в очереди · #{index + 1}
+          {t.currentQueued(index + 1)}
         </>
       ) : (
         <>
           <Plus aria-hidden className="size-4" strokeWidth={2.4} />
-          {queueable || !tab ? 'Добавить текущую вкладку' : 'Служебная страница — не добавляется'}
+          {queueable || !tab ? t.addCurrent : t.browserPage}
         </>
       )}
     </button>

@@ -7,7 +7,8 @@ import { type FormEvent, useState } from 'react';
 import { displayHost, type GroupView, type SpaceView } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
 import { faviconUrl } from '@/lib/browser-api';
-import { count, TABS } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 import { GROUP_COLORS, type GroupColor, type SavedTab, type TabGroup } from '@/lib/db';
 import { runCommand } from '../commands';
 import { announcements, type DragData, screenReaderInstructions, useDragSensors } from '../dnd';
@@ -17,13 +18,13 @@ import {
   BUTTON_SECONDARY,
   DIALOG_CONTENT,
   DIALOG_OVERLAY,
-  GROUP_COLOR_NAME,
+  groupColorName,
   GROUP_DOT,
   INPUT,
   MENU_CONTENT,
   MENU_ITEM,
   MENU_SEPARATOR,
-  UNTITLED,
+  untitled,
 } from '../ui';
 import { Highlighted } from './Highlighted';
 
@@ -44,6 +45,43 @@ interface LinksProps {
  * The links of a group: open one (or show its tab), drag to a new place, move to another group,
  * delete to the trash.
  */
+const text = localized({
+  ru: {
+    close: 'Закрыть',
+    linksAbout:
+      'Ссылки группы: открыть, перетащить на другое место, перенести в другую группу или удалить в корзину.',
+    noLinks: 'В группе нет ссылок.',
+    link: 'ссылка',
+    moveLink: (name: string) => `Переместить ссылку ${name}`,
+    linkActions: (name: string) => `Действия со ссылкой ${name}`,
+    moveToGroup: 'Перенести в группу',
+    delete: 'Удалить',
+    edit: 'Название и цвет',
+    editAbout: 'Название и цвет группы. Открытая группа изменится и на панели вкладок.',
+    name: 'Название',
+    color: 'Цвет',
+    cancel: 'Отмена',
+    save: 'Сохранить',
+  },
+  en: {
+    close: 'Close',
+    linksAbout:
+      'Links of the group: open, drag to another place, move to another group or delete to Trash.',
+    noLinks: 'The group has no links.',
+    link: 'link',
+    moveLink: (name: string) => `Move link ${name}`,
+    linkActions: (name: string) => `Actions for link ${name}`,
+    moveToGroup: 'Move to group',
+    delete: 'Delete',
+    edit: 'Title and color',
+    editAbout: 'Title and color of the group. An open group changes on the tab strip too.',
+    name: 'Title',
+    color: 'Color',
+    cancel: 'Cancel',
+    save: 'Save',
+  },
+});
+
 export function GroupLinksDialog({
   view,
   spaces,
@@ -53,7 +91,7 @@ export function GroupLinksDialog({
 }: DialogProps & LinksProps) {
   if (!view) return null;
   const { group, tabs } = view;
-  const title = group.title || UNTITLED;
+  const title = group.title || untitled();
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -66,18 +104,15 @@ export function GroupLinksDialog({
               className={`size-2.5 shrink-0 rounded-full ${GROUP_DOT[group.color]}`}
             />
             <Dialog.Title className="min-w-0 truncate text-md font-semibold">{title}</Dialog.Title>
-            <span className="font-mono text-xs text-fg-muted">{count(tabs.length, TABS)}</span>
-            <Dialog.Close aria-label="Закрыть" className={`ml-auto ${BUTTON_ICON}`}>
+            <span className="font-mono text-xs text-fg-muted">{words().tabs(tabs.length)}</span>
+            <Dialog.Close aria-label={text().close} className={`ml-auto ${BUTTON_ICON}`}>
               <X aria-hidden className="size-4" />
             </Dialog.Close>
           </div>
-          <Dialog.Description className="sr-only">
-            Ссылки группы: открыть, перетащить на другое место, перенести в другую группу или
-            удалить в корзину.
-          </Dialog.Description>
+          <Dialog.Description className="sr-only">{text().linksAbout}</Dialog.Description>
 
           {tabs.length === 0 ? (
-            <p className="text-sm text-fg-muted">В группе нет ссылок.</p>
+            <p className="text-sm text-fg-muted">{text().noLinks}</p>
           ) : (
             <LinkList group={group} tabs={tabs} spaces={spaces} terms={terms} />
           )}
@@ -157,7 +192,7 @@ function LinkRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tab.id, data, attributes: { roleDescription: 'ссылка' } });
+  } = useSortable({ id: tab.id, data, attributes: { roleDescription: text().link } });
 
   return (
     <li
@@ -170,7 +205,7 @@ function LinkRow({
         type="button"
         {...attributes}
         {...listeners}
-        aria-label={`Переместить ссылку «${name}»`}
+        aria-label={text().moveLink(words().quote(name))}
         className={`${BUTTON_ICON} ml-1 cursor-grab text-fg-subtle`}
       >
         <GripVertical aria-hidden className="size-4" />
@@ -213,7 +248,7 @@ function LinkMenu({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        aria-label={`Действия со ссылкой «${name}»`}
+        aria-label={text().linkActions(words().quote(name))}
         className={`${BUTTON_ICON} mr-1`}
       >
         <Ellipsis aria-hidden className="size-4" />
@@ -222,7 +257,7 @@ function LinkMenu({
         <DropdownMenu.Content align="end" sideOffset={4} className={MENU_CONTENT}>
           <DropdownMenu.Sub>
             <DropdownMenu.SubTrigger className={MENU_ITEM} disabled={targets.length === 0}>
-              <FolderInput aria-hidden /> Перенести в группу
+              <FolderInput aria-hidden /> {text().moveToGroup}
               <ChevronRight aria-hidden className="ml-auto" />
             </DropdownMenu.SubTrigger>
             <DropdownMenu.Portal>
@@ -255,7 +290,7 @@ function LinkMenu({
                           aria-hidden
                           className={`size-2.5 shrink-0 rounded-full ${GROUP_DOT[target.color]}`}
                         />
-                        <span className="truncate">{target.title || UNTITLED}</span>
+                        <span className="truncate">{target.title || untitled()}</span>
                       </DropdownMenu.Item>
                     ))}
                   </DropdownMenu.Group>
@@ -270,7 +305,7 @@ function LinkMenu({
               void runCommand({ type: 'deleteTab', tabId: tab.id }, { name: group.title })
             }
           >
-            <Trash aria-hidden /> Удалить
+            <Trash aria-hidden /> {text().delete}
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -286,10 +321,8 @@ export function EditGroupDialog({ group, open, onOpenChange }: DialogProps & { g
       <Dialog.Portal>
         <Dialog.Overlay className={DIALOG_OVERLAY} />
         <Dialog.Content className={DIALOG_CONTENT}>
-          <Dialog.Title className="text-md font-semibold">Название и цвет</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            Название и цвет группы. Открытая группа изменится и на панели вкладок.
-          </Dialog.Description>
+          <Dialog.Title className="text-md font-semibold">{text().edit}</Dialog.Title>
+          <Dialog.Description className="sr-only">{text().editAbout}</Dialog.Description>
           <EditGroupForm key={group.id} group={group} onDone={() => onOpenChange(false)} />
         </Dialog.Content>
       </Dialog.Portal>
@@ -313,11 +346,11 @@ function EditGroupForm({ group, onDone }: { group: TabGroup; onDone: () => void 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5 text-sm text-fg-muted">
-        Название
+        {text().name}
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder={UNTITLED}
+          placeholder={untitled()}
           maxLength={120}
           autoFocus
           className={INPUT}
@@ -325,10 +358,10 @@ function EditGroupForm({ group, onDone }: { group: TabGroup; onDone: () => void 
       </label>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 text-sm text-fg-muted">Цвет</legend>
+        <legend className="mb-1.5 text-sm text-fg-muted">{text().color}</legend>
         <div className="flex flex-wrap gap-2">
           {GROUP_COLORS.map((option) => (
-            <label key={option} title={GROUP_COLOR_NAME[option]} className="relative">
+            <label key={option} title={groupColorName(option)} className="relative">
               <input
                 type="radio"
                 name="group-color"
@@ -337,7 +370,7 @@ function EditGroupForm({ group, onDone }: { group: TabGroup; onDone: () => void 
                 onChange={() => setColor(option)}
                 className="peer sr-only"
               />
-              <span className="sr-only">{GROUP_COLOR_NAME[option]}</span>
+              <span className="sr-only">{groupColorName(option)}</span>
               {/* Selected: a ring and a check mark, not only the color. */}
               <span
                 aria-hidden
@@ -352,10 +385,10 @@ function EditGroupForm({ group, onDone }: { group: TabGroup; onDone: () => void 
 
       <div className="flex justify-end gap-2">
         <Dialog.Close type="button" className={BUTTON_SECONDARY}>
-          Отмена
+          {text().cancel}
         </Dialog.Close>
         <button type="submit" className={BUTTON_PRIMARY}>
-          Сохранить
+          {text().save}
         </button>
       </div>
     </form>

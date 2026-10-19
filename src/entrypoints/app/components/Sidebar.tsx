@@ -7,7 +7,8 @@ import type { Overview, SpaceView } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
 import type { Route } from '@/lib/app/route';
 import { routeHash } from '@/lib/app/route';
-import { count, GROUPS, plural, TABS } from '@/lib/command-messages';
+import { localized } from '@/lib/i18n';
+import { pluralRu, words } from '@/lib/i18n/words';
 import { type Id, repositories } from '@/lib/db';
 import { arrangeTabStrip, moveGroupToSpace } from '../commands';
 import { type DragData, dragData, ZONE_ID } from '../dnd';
@@ -29,7 +30,41 @@ interface SidebarProps {
   currentSpaceId?: Id;
 }
 
+const text = localized({
+  ru: {
+    orderNotSaved: 'Порядок не сохранён — пространства остались на своих местах.',
+    sections: 'Разделы',
+    spaces: 'Пространства',
+    dropHere: 'Отпустить на пространстве — группа перейдёт туда.',
+    newSpace: 'Новое пространство',
+    trash: 'Корзина',
+    outOfMemory: 'Не в памяти',
+    outOfMemoryShare: 'Доля вкладок не в памяти',
+    states: (asleep: number, stowed: number) =>
+      `${words().groups(asleep)} ${pluralRu(asleep, ['спит', 'спят', 'спят'])} · ${stowed} ${pluralRu(stowed, ['убрана', 'убраны', 'убраны'])}`,
+    settings: 'Настройки',
+    space: 'пространство',
+    here: 'сюда',
+  },
+  en: {
+    orderNotSaved: 'The order was not saved — spaces stay where they were.',
+    sections: 'Sections',
+    spaces: 'Spaces',
+    dropHere: 'Drop on a space — the group moves there.',
+    newSpace: 'New space',
+    trash: 'Trash',
+    outOfMemory: 'Out of memory',
+    outOfMemoryShare: 'Share of tabs out of memory',
+    states: (asleep: number, stowed: number) =>
+      `${words().groups(asleep)} asleep · ${stowed} stowed`,
+    settings: 'Settings',
+    space: 'space',
+    here: 'here',
+  },
+});
+
 export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
+  const t = text();
   const creating = useUi((state) => state.newSpaceOpen);
   const setCreating = useUi((state) => state.setNewSpaceOpen);
   const { groupsByState, tabsOutOfMemory, tabCount } = overview;
@@ -65,9 +100,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
         .place(moved.space.id, next.indexOf(moved.space.id))
         .then(arrangeTabStrip, () => {
           setDropped(undefined);
-          useUi
-            .getState()
-            .showToast('Порядок не сохранён — пространства остались на своих местах.');
+          useUi.getState().showToast(text().orderNotSaved);
         });
     },
   });
@@ -85,7 +118,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
   return (
     <nav
       ref={setSidebarZone}
-      aria-label="Разделы"
+      aria-label={t.sections}
       className="flex w-60 shrink-0 flex-col gap-6 border-r border-border bg-bg-sunken px-3 py-5"
     >
       <div className="flex items-center gap-2.5 px-2">
@@ -112,7 +145,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
 
       <div className="flex flex-col gap-0.5">
         <h2 className="px-2 pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-fg-subtle uppercase">
-          Пространства
+          {t.spaces}
         </h2>
         <div ref={setSpacesZone} className="flex flex-col gap-0.5">
           {inbox && <InboxLink {...link(inbox)} />}
@@ -127,9 +160,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
         </div>
         {draggingGroup ? (
           // Below the list, so the spaces under the pointer do not shift while dragging.
-          <p className="min-h-9 px-2 py-2 text-xs text-fg-muted">
-            Отпустить на пространстве — группа перейдёт туда.
-          </p>
+          <p className="min-h-9 px-2 py-2 text-xs text-fg-muted">{t.dropHere}</p>
         ) : (
           <button
             type="button"
@@ -137,7 +168,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
             className={`${NAV_ITEM} text-fg-muted`}
           >
             <Plus aria-hidden />
-            Новое пространство
+            {t.newSpace}
           </button>
         )}
       </div>
@@ -149,25 +180,25 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
           className={route.view === 'trash' ? NAV_ITEM_CURRENT : NAV_ITEM}
         >
           <Trash aria-hidden className={route.view === 'trash' ? '' : 'text-fg-muted'} />
-          Корзина
+          {t.trash}
         </a>
       </div>
 
       <div className="mt-auto flex flex-col gap-3">
         <section
-          aria-label="Не в памяти"
+          aria-label={t.outOfMemory}
           className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3.5"
         >
-          <span className="text-xs text-fg-muted">Не в памяти</span>
+          <span className="text-xs text-fg-muted">{t.outOfMemory}</span>
           <span className="font-mono text-[22px] leading-7">
             {tabsOutOfMemory}
             <span className="ml-1.5 font-sans text-sm text-fg-muted">
-              {plural(tabsOutOfMemory, TABS)}
+              {words().tabNoun(tabsOutOfMemory)}
             </span>
           </span>
           <div
             role="meter"
-            aria-label="Доля вкладок не в памяти"
+            aria-label={t.outOfMemoryShare}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={share}
@@ -176,9 +207,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
             <div className="h-1 bg-accent" style={{ width: `${share}%` }} />
           </div>
           <span className="text-xs text-fg-subtle">
-            {count(groupsByState.asleep, GROUPS)}{' '}
-            {plural(groupsByState.asleep, ['спит', 'спят', 'спят'])} · {groupsByState.stowed}{' '}
-            {plural(groupsByState.stowed, ['убрана', 'убраны', 'убраны'])}
+            {t.states(groupsByState.asleep, groupsByState.stowed)}
           </span>
         </section>
         <a
@@ -187,7 +216,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
           className={route.view === 'settings' ? NAV_ITEM_CURRENT : `${NAV_ITEM} text-fg-muted`}
         >
           <Settings aria-hidden />
-          Настройки
+          {t.settings}
         </a>
       </div>
 
@@ -238,7 +267,7 @@ function InboxLink({ view, current }: SpaceLinkProps) {
 function SortableSpaceLink({ view, current }: SpaceLinkProps) {
   const data: DragData = { type: 'space', space: view.space };
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver, active } =
-    useSortable({ id: view.space.id, data, attributes: { roleDescription: 'пространство' } });
+    useSortable({ id: view.space.id, data, attributes: { roleDescription: text().space } });
   return (
     <SpaceLinkBody
       ref={setNodeRef}
@@ -290,12 +319,12 @@ function SpaceLinkBody({
       {drop === 'over' ? (
         <span className="ml-auto flex items-center gap-1 text-xs">
           <CornerDownLeft aria-hidden />
-          сюда
+          {text().here}
         </span>
       ) : (
         <span
           className={`ml-auto font-mono text-xs ${current ? '' : 'text-fg-muted'}`}
-          aria-label={count(tabCount, TABS)}
+          aria-label={words().tabs(tabCount)}
         >
           {tabCount}
         </span>

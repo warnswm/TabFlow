@@ -20,16 +20,20 @@ import {
   summarizeBackup,
 } from '@/lib/backup/format';
 import {
+  browserLanguage,
   extensionVersion,
   getHotkeys,
   grantedSitePatterns,
   openBrowserPage,
   removeSiteAccess,
 } from '@/lib/browser-api';
-import { count, describeBackupError, GROUPS, plural } from '@/lib/command-messages';
+import { describeBackupError } from '@/lib/command-messages';
 import { repositories } from '@/lib/db';
+import { LANGUAGE_SETTINGS, type LanguageSetting, localized, resolveLanguage } from '@/lib/i18n';
+import { pluralEn, pluralRu, words } from '@/lib/i18n/words';
 import { RESTORE_MODES, type RestoreMode } from '@/lib/messages';
-import { BADGE_MODE_LABEL, BADGE_MODES, type BadgeMode } from '@/lib/summary';
+import { loadLanguageSetting, saveLanguageSetting } from '@/lib/settings';
+import { BADGE_MODES, type BadgeMode, badgeModeLabel } from '@/lib/summary';
 import { formatShortcut } from '@/lib/hotkeys';
 import { runCommand } from '../commands';
 import { useNow } from '../hooks';
@@ -44,63 +48,200 @@ import {
 } from '../ui';
 
 /**
- * Settings page (`#/settings`, also the options page of the extension): how groups come back,
- * what the badge counts, shortcuts, sites with access, the backup file, the trash, the version.
- * Settings live in `storage.local`; the backup is built and read here, imported by the background.
+ * Settings page (`#/settings`, also the options page of the extension): the language, how groups
+ * come back, what the badge counts, shortcuts, sites with access, the backup file, the trash, the
+ * version. Settings live in `storage.local`; the backup is built and read here, imported by the
+ * background.
  */
 
-const RESTORE_MODE_TEXT: Record<RestoreMode, { label: string; hint: string }> = {
-  placeholder: {
-    label: 'Заглушки TabFlow',
-    hint: 'Вкладки ждут лёгкой страницей с названием и иконкой; сайт грузится, когда вкладку открывают.',
-  },
-  background: {
-    label: 'Сайты с выгрузкой в фоне',
-    hint: 'Сайты открываются сразу и выгружаются из памяти, как только загрузились.',
-  },
-};
+type Choices<T extends string> = Record<T, { label: string; hint: string }>;
 
-const BADGE_MODE_HINT: Record<BadgeMode, string> = {
-  today: 'Первые три видео очереди — «на сегодня».',
-  queue: 'Все видео, которые ждут в очереди.',
-  stowed: 'Группы, убранные в TabFlow.',
-};
+const text = localized({
+  ru: {
+    title: 'Настройки',
+    intro: 'Всё хранится только в этом браузере. Изменения применяются сразу.',
+    language: 'Язык',
+    languageAbout: 'Язык интерфейса TabFlow: страницы, меню, значок.',
+    languages: {
+      auto: { label: 'Как в Chrome', hint: '' },
+      ru: { label: 'Русский', hint: '' },
+      en: { label: 'English', hint: '' },
+    } as Choices<LanguageSetting>,
+    nowRussian: 'Сейчас — русский.',
+    nowEnglish: 'Сейчас — английский.',
+    restore: 'Возврат групп',
+    restoreAbout: 'Как открываются вкладки убранной группы, когда её возвращают на панель.',
+    restoreModes: {
+      placeholder: {
+        label: 'Заглушки TabFlow',
+        hint: 'Вкладки ждут лёгкой страницей с названием и иконкой; сайт грузится, когда вкладку открывают.',
+      },
+      background: {
+        label: 'Сайты с выгрузкой в фоне',
+        hint: 'Сайты открываются сразу и выгружаются из памяти, как только загрузились.',
+      },
+    } as Choices<RestoreMode>,
+    badge: 'Число на значке',
+    badgeAbout: 'Что считает число на значке TabFlow. Подсказка значка всегда показывает всё.',
+    badgeHints: {
+      today: 'Первые три видео очереди — «на сегодня».',
+      queue: 'Все видео, которые ждут в очереди.',
+      stowed: 'Группы, убранные в TabFlow.',
+    } as Record<BadgeMode, string>,
+    hotkeys: 'Сочетания клавиш',
+    hotkeysAbout:
+      'Сочетания назначает Chrome — на своей странице. Здесь видно, какие действуют сейчас.',
+    notAssigned: 'не назначено',
+    changeInChrome: 'Изменить в Chrome',
+    sites: 'Доступ к сайтам',
+    sitesAbout:
+      'Нужен очереди видео (длительность и позиция) и «Рядом» (сайты в рамках). Chrome спрашивает его для каждого сайта отдельно.',
+    noSites:
+      'Доступа к сайтам нет. Chrome спросит его, когда видео попадёт в очередь или сайт откроется «Рядом».',
+    sitesCount: (n: number) => `${words().sites(n)} с доступом`,
+    removeAccess: 'Убрать доступ',
+    accessRemoved: (site: string) =>
+      `Доступ к ${site} убран. Видео этого сайта остались в очереди — без длительности и позиции.`,
+    accessKept: (site: string) =>
+      `Доступ к ${site} не убран — его выдали в Chrome при установке. Убрать: chrome://extensions → TabFlow → «Доступ к сайтам».`,
+    data: 'Данные',
+    dataAbout:
+      'Копия в файле JSON: пространства, группы со ссылками, очередь видео, раскладки «Рядом» и настройки. Корзина в копию не входит.',
+    exportFile: 'Экспорт в файл',
+    importFile: 'Импорт из файла',
+    fileLabel: 'Файл копии TabFlow',
+    importNote:
+      'Импортированные группы приходят убранными: вкладки не открываются, пока группу не вернут.',
+    exported: (name: string, contents: string) => `Копия сохранена в файл ${name}: ${contents}.`,
+    notExported: 'Копия не сохранена. Данные TabFlow не изменились.',
+    trash: 'Корзина',
+    trashAbout:
+      'Удалённые пространства, группы, ссылки и видео хранятся в корзине 30 дней, потом исчезают насовсем.',
+    openTrash: 'Открыть корзину',
+    about: 'О TabFlow',
+    slogan: 'Всё на виду. Ничего в памяти.',
+    privacy:
+      'Данные не покидают этот браузер: TabFlow не отправляет их ни на какие серверы. В сеть уходят только запросы обложек YouTube (i.ytimg.com) для плиток и очереди.',
+    importTitle: 'Импорт копии',
+    hasData: 'В TabFlow уже есть данные.',
+    add: 'Добавить',
+    addAbout:
+      'Копия добавится к тому, что есть. Пространства с тем же названием объединятся; группы и видео, которые уже есть, не повторятся.',
+    replace: 'Заменить',
+    replaceAbout: (closing: string) =>
+      `Пространства, группы и очередь уйдут в корзину на 30 дней, на их место встанет копия с её настройками.${closing} Раскладки «Рядом» останутся.`,
+    closing: (n: number) =>
+      ` ${words().groups(n)} на панели ${pluralRu(n, ['закроется', 'закроются', 'закроются'])} — ${pluralRu(n, ['она сохранится', 'они сохранятся', 'они сохранятся'])} в корзине.`,
+    undoNote: 'После импорта его можно отменить в сообщении внизу.',
+    cancel: 'Отмена',
+  },
+  en: {
+    title: 'Settings',
+    intro: 'Everything is stored in this browser only. Changes apply at once.',
+    language: 'Language',
+    languageAbout: 'The language of TabFlow: pages, menus, the icon.',
+    languages: {
+      auto: { label: 'Same as Chrome', hint: '' },
+      ru: { label: 'Русский', hint: '' },
+      en: { label: 'English', hint: '' },
+    },
+    nowRussian: 'Now Russian.',
+    nowEnglish: 'Now English.',
+    restore: 'Restoring groups',
+    restoreAbout: 'How the tabs of a stowed group open when it goes back to the tab strip.',
+    restoreModes: {
+      placeholder: {
+        label: 'TabFlow placeholders',
+        hint: 'Tabs wait as a light page with the title and icon; the site loads when the tab is opened.',
+      },
+      background: {
+        label: 'Sites, unloaded in the background',
+        hint: 'Sites open at once and are unloaded from memory as soon as they have loaded.',
+      },
+    },
+    badge: 'Number on the icon',
+    badgeAbout: 'What the number on the TabFlow icon counts. The icon tooltip always shows all.',
+    badgeHints: {
+      today: 'The first three videos of the queue — “for today”.',
+      queue: 'All videos waiting in the queue.',
+      stowed: 'Groups stowed in TabFlow.',
+    },
+    hotkeys: 'Keyboard shortcuts',
+    hotkeysAbout: 'Chrome assigns shortcuts on its own page. Here are the ones that work now.',
+    notAssigned: 'not set',
+    changeInChrome: 'Change in Chrome',
+    sites: 'Site access',
+    sitesAbout:
+      'Needed by the video queue (duration and position) and “Side by side” (sites in frames). Chrome asks for each site separately.',
+    noSites:
+      'No site access. Chrome asks for it when a video is queued or a site opens side by side.',
+    sitesCount: (n: number) => `${words().sites(n)} with access`,
+    removeAccess: 'Remove access',
+    accessRemoved: (site: string) =>
+      `Access to ${site} removed. Its videos stay in the queue — without duration and position.`,
+    accessKept: (site: string) =>
+      `Access to ${site} was not removed — it was granted in Chrome at install. To remove: chrome://extensions → TabFlow → “Site access”.`,
+    data: 'Data',
+    dataAbout:
+      'A JSON backup: spaces, groups with links, the video queue, “Side by side” layouts and settings. Trash is not included.',
+    exportFile: 'Export to file',
+    importFile: 'Import from file',
+    fileLabel: 'TabFlow backup file',
+    importNote: 'Imported groups come stowed: tabs do not open until the group is restored.',
+    exported: (name: string, contents: string) => `Backup saved to ${name}: ${contents}.`,
+    notExported: 'The backup was not saved. TabFlow data is unchanged.',
+    trash: 'Trash',
+    trashAbout:
+      'Deleted spaces, groups, links and videos are kept in Trash for 30 days, then removed for good.',
+    openTrash: 'Open Trash',
+    about: 'About TabFlow',
+    slogan: 'Everything in sight. Nothing in memory.',
+    privacy:
+      'Data never leaves this browser: TabFlow sends it to no server. The only network requests are YouTube thumbnails (i.ytimg.com) for tiles and the queue.',
+    importTitle: 'Import backup',
+    hasData: 'TabFlow already holds data.',
+    add: 'Add',
+    addAbout:
+      'The backup is added to what is there. Spaces with the same name merge; groups and videos already there are not repeated.',
+    replace: 'Replace',
+    replaceAbout: (closing: string) =>
+      `Spaces, groups and the queue go to Trash for 30 days; the backup with its settings takes their place.${closing} “Side by side” layouts stay.`,
+    closing: (n: number) =>
+      ` ${words().groups(n)} on the tab strip ${pluralEn(n, ['closes', 'close'])} — kept in Trash.`,
+    undoNote: 'The import can be undone in the message at the bottom.',
+    cancel: 'Cancel',
+  },
+});
 
 const SHORTCUTS_PAGE = 'chrome://extensions/shortcuts';
-const SITES: [string, string, string] = ['сайт', 'сайта', 'сайтов'];
 
 export function SettingsView({ overview }: { overview: Overview }) {
+  const t = text();
   return (
     <div className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-bold tracking-[-0.02em]">Настройки</h1>
-        <p className="text-sm text-fg-muted">
-          Всё хранится только в этом браузере. Изменения применяются сразу.
-        </p>
+        <h1 className="text-xl font-bold tracking-[-0.02em]">{t.title}</h1>
+        <p className="text-sm text-fg-muted">{t.intro}</p>
       </header>
+      <LanguageSection />
       <RestoreModeSection />
       <BadgeModeSection />
       <HotkeysSection />
       <SiteAccessSection />
       <DataSection overview={overview} />
-      <Section title="Корзина">
+      <Section title={t.trash}>
         <p className="text-sm text-fg-muted">
-          Удалённые пространства, группы, ссылки и видео хранятся в корзине 30 дней, потом исчезают
-          насовсем.{' '}
+          {t.trashAbout}{' '}
           <a href={routeHash({ view: 'trash' })} className={BUTTON_LINK}>
-            Открыть корзину
+            {t.openTrash}
           </a>
         </p>
       </Section>
-      <Section title="О TabFlow">
+      <Section title={t.about}>
         <p className="text-sm text-fg-muted">
-          TabFlow <span className="font-mono text-fg">{extensionVersion()}</span> · Всё на виду.
-          Ничего в памяти.
+          TabFlow <span className="font-mono text-fg">{extensionVersion()}</span> · {t.slogan}
         </p>
-        <p className="text-sm text-fg-muted">
-          Данные не покидают этот браузер: TabFlow не отправляет их ни на какие серверы. В сеть
-          уходят только запросы обложек YouTube (i.ytimg.com) для плиток и очереди.
-        </p>
+        <p className="text-sm text-fg-muted">{t.privacy}</p>
       </Section>
     </div>
   );
@@ -141,7 +282,7 @@ function ChoiceList<T extends string>({
   onChange,
 }: {
   name: string;
-  value: T;
+  value: T | undefined;
   choices: readonly Choice<T>[];
   onChange: (value: T) => void;
 }) {
@@ -162,7 +303,7 @@ function ChoiceList<T extends string>({
           />
           <span className="flex flex-col gap-0.5">
             <span className="text-sm text-fg">{choice.label}</span>
-            <span className="text-xs text-fg-muted">{choice.hint}</span>
+            {choice.hint && <span className="text-xs text-fg-muted">{choice.hint}</span>}
           </span>
         </label>
       ))}
@@ -170,18 +311,47 @@ function ChoiceList<T extends string>({
   );
 }
 
+/**
+ * The language setting. Saving it changes `storage.local`; every page (this one included) and the
+ * background follow it, and this page remounts in the new language.
+ */
+function LanguageSection() {
+  const t = text();
+  const [setting, setSetting] = useState<LanguageSetting>();
+  useEffect(() => {
+    void loadLanguageSetting().then(setSetting);
+  }, []);
+  const chrome = resolveLanguage('auto', browserLanguage()) === 'ru' ? t.nowRussian : t.nowEnglish;
+
+  return (
+    <Section title={t.language} description={t.languageAbout}>
+      <ChoiceList
+        name="language"
+        value={setting}
+        choices={LANGUAGE_SETTINGS.map((value) => ({
+          value,
+          label: t.languages[value].label,
+          hint: value === 'auto' ? chrome : '',
+        }))}
+        onChange={(value) => {
+          setSetting(value);
+          void saveLanguageSetting(value);
+        }}
+      />
+    </Section>
+  );
+}
+
 function RestoreModeSection() {
+  const t = text();
   const restoreMode = useUi((state) => state.restoreMode);
   const setRestoreMode = useUi((state) => state.setRestoreMode);
   return (
-    <Section
-      title="Возврат групп"
-      description="Как открываются вкладки убранной группы, когда её возвращают на панель."
-    >
+    <Section title={t.restore} description={t.restoreAbout}>
       <ChoiceList
         name="restore-mode"
         value={restoreMode}
-        choices={RESTORE_MODES.map((mode) => ({ value: mode, ...RESTORE_MODE_TEXT[mode] }))}
+        choices={RESTORE_MODES.map((mode) => ({ value: mode, ...t.restoreModes[mode] }))}
         onChange={setRestoreMode}
       />
     </Section>
@@ -189,20 +359,18 @@ function RestoreModeSection() {
 }
 
 function BadgeModeSection() {
+  const t = text();
   const badgeMode = useUi((state) => state.badgeMode);
   const setBadgeMode = useUi((state) => state.setBadgeMode);
   return (
-    <Section
-      title="Число на значке"
-      description="Что считает число на значке TabFlow. Подсказка значка всегда показывает всё."
-    >
+    <Section title={t.badge} description={t.badgeAbout}>
       <ChoiceList
         name="badge-mode"
         value={badgeMode}
         choices={BADGE_MODES.map((mode) => ({
           value: mode,
-          label: BADGE_MODE_LABEL[mode],
-          hint: BADGE_MODE_HINT[mode],
+          label: badgeModeLabel(mode),
+          hint: t.badgeHints[mode],
         }))}
         onChange={setBadgeMode}
       />
@@ -229,12 +397,10 @@ function useOnFocus<T>(load: () => Promise<T>): [T | undefined, () => void] {
 const loadHotkeys = async (): Promise<HotkeyRow[]> => hotkeyRows(await getHotkeys());
 
 function HotkeysSection() {
+  const t = text();
   const [rows] = useOnFocus(loadHotkeys);
   return (
-    <Section
-      title="Сочетания клавиш"
-      description="Сочетания назначает Chrome — на своей странице. Здесь видно, какие действуют сейчас."
-    >
+    <Section title={t.hotkeys} description={t.hotkeysAbout}>
       <ul className="flex flex-col">
         {(rows ?? []).map((row) => (
           <li
@@ -247,7 +413,7 @@ function HotkeysSection() {
                 {formatShortcut(row.shortcut)}
               </kbd>
             ) : (
-              <span className="shrink-0 text-xs text-fg-subtle">не назначено</span>
+              <span className="shrink-0 text-xs text-fg-subtle">{t.notAssigned}</span>
             )}
           </li>
         ))}
@@ -258,7 +424,7 @@ function HotkeysSection() {
           className={BUTTON_SECONDARY}
           onClick={() => void openBrowserPage(SHORTCUTS_PAGE)}
         >
-          Изменить в Chrome
+          {t.changeInChrome}
           <ArrowUpRight aria-hidden className="size-4" />
         </button>
       </div>
@@ -269,34 +435,23 @@ function HotkeysSection() {
 const loadSites = async (): Promise<SiteAccessRow[]> => siteAccessRows(await grantedSitePatterns());
 
 function SiteAccessSection() {
+  const t = text();
   const [rows, reload] = useOnFocus(loadSites);
   const showToast = useUi((state) => state.showToast);
 
   async function remove(row: SiteAccessRow) {
     const removed = await removeSiteAccess([row.pattern]);
     reload();
-    showToast(
-      removed
-        ? `Доступ к ${row.label} убран. Видео этого сайта остались в очереди — без длительности и позиции.`
-        : `Доступ к ${row.label} не убран — его выдали в Chrome при установке. Убрать: chrome://extensions → TabFlow → «Доступ к сайтам».`,
-    );
+    showToast(removed ? text().accessRemoved(row.label) : text().accessKept(row.label));
   }
 
   return (
-    <Section
-      title="Доступ к сайтам"
-      description="Нужен очереди видео (длительность и позиция) и «Рядом» (сайты в рамках). Chrome спрашивает его для каждого сайта отдельно."
-    >
+    <Section title={t.sites} description={t.sitesAbout}>
       {rows && rows.length === 0 ? (
-        <p className="text-sm text-fg-muted">
-          Доступа к сайтам нет. Chrome спросит его, когда видео попадёт в очередь или сайт откроется
-          «Рядом».
-        </p>
+        <p className="text-sm text-fg-muted">{t.noSites}</p>
       ) : (
         <>
-          <p className="text-xs text-fg-subtle">
-            {rows && `${count(rows.length, SITES)} с доступом`}
-          </p>
+          <p className="text-xs text-fg-subtle">{rows && t.sitesCount(rows.length)}</p>
           <ul className="flex flex-col">
             {(rows ?? []).map((row) => (
               <li
@@ -311,7 +466,7 @@ function SiteAccessSection() {
                   className={`${BUTTON_LINK} shrink-0 text-sm`}
                   onClick={() => void remove(row)}
                 >
-                  Убрать доступ
+                  {t.removeAccess}
                 </button>
               </li>
             ))}
@@ -333,6 +488,7 @@ async function isTabFlowEmpty(): Promise<boolean> {
 }
 
 function DataSection({ overview }: { overview: Overview }) {
+  const t = text();
   const fileInput = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Backup>();
   const [busy, setBusy] = useState(false);
@@ -349,9 +505,9 @@ function DataSection({ overview }: { overview: Overview }) {
       link.download = name;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      showToast(`Копия сохранена в файл ${name}: ${backupContents(summarizeBackup(backup))}.`);
+      showToast(text().exported(name, backupContents(summarizeBackup(backup))));
     } catch {
-      showToast('Копия не сохранена. Данные TabFlow не изменились.');
+      showToast(text().notExported);
     }
   }
 
@@ -391,10 +547,7 @@ function DataSection({ overview }: { overview: Overview }) {
   }
 
   return (
-    <Section
-      title="Данные"
-      description="Копия в файле JSON: пространства, группы со ссылками, очередь видео, раскладки «Рядом» и настройки. Корзина в копию не входит."
-    >
+    <Section title={t.data} description={t.dataAbout}>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -403,7 +556,7 @@ function DataSection({ overview }: { overview: Overview }) {
           onClick={() => void exportFile()}
         >
           <Download aria-hidden className="size-4" />
-          Экспорт в файл
+          {t.exportFile}
         </button>
         <button
           type="button"
@@ -412,20 +565,18 @@ function DataSection({ overview }: { overview: Overview }) {
           onClick={() => fileInput.current?.click()}
         >
           <Upload aria-hidden className="size-4" />
-          Импорт из файла
+          {t.importFile}
         </button>
         <input
           ref={fileInput}
           type="file"
           accept=".json,application/json"
           className="hidden"
-          aria-label="Файл копии TabFlow"
+          aria-label={t.fileLabel}
           onChange={(event) => void chooseFile(event)}
         />
       </div>
-      <p className="text-xs text-fg-subtle">
-        Импортированные группы приходят убранными: вкладки не открываются, пока группу не вернут.
-      </p>
+      <p className="text-xs text-fg-subtle">{t.importNote}</p>
       <ImportDialog
         backup={pending}
         openGroups={overview.groupsByState.active + overview.groupsByState.asleep}
@@ -448,45 +599,35 @@ function ImportDialog({
   onCancel: () => void;
   onImport: (replace: boolean) => void;
 }) {
+  const t = text();
   const now = useNow();
-  const closing =
-    openGroups > 0
-      ? ` ${count(openGroups, GROUPS)} на панели ${plural(openGroups, ['закроется', 'закроются', 'закроются'])} — ${plural(openGroups, ['она сохранится', 'они сохранятся', 'они сохранятся'])} в корзине.`
-      : '';
+  const closing = openGroups > 0 ? t.closing(openGroups) : '';
   return (
     <Dialog.Root open={backup !== undefined} onOpenChange={(open) => !open && onCancel()}>
       <Dialog.Portal>
         <Dialog.Overlay className={DIALOG_OVERLAY} />
         <Dialog.Content className={DIALOG_CONTENT}>
-          <Dialog.Title className="text-md font-semibold">Импорт копии</Dialog.Title>
+          <Dialog.Title className="text-md font-semibold">{t.importTitle}</Dialog.Title>
           <Dialog.Description className="text-sm text-fg-muted">
-            {backup && describeBackup(summarizeBackup(backup), now)} В TabFlow уже есть данные.
+            {backup && describeBackup(summarizeBackup(backup), now)} {t.hasData}
           </Dialog.Description>
           <dl className="flex flex-col gap-3 text-sm">
             <div className="flex flex-col gap-0.5">
-              <dt className="font-semibold text-fg">Добавить</dt>
-              <dd className="text-fg-muted">
-                Копия добавится к тому, что есть. Пространства с тем же названием объединятся;
-                группы и видео, которые уже есть, не повторятся.
-              </dd>
+              <dt className="font-semibold text-fg">{t.add}</dt>
+              <dd className="text-fg-muted">{t.addAbout}</dd>
             </div>
             <div className="flex flex-col gap-0.5">
-              <dt className="font-semibold text-fg">Заменить</dt>
-              <dd className="text-fg-muted">
-                Пространства, группы и очередь уйдут в корзину на 30 дней, на их место встанет копия
-                с её настройками.{closing} Раскладки «Рядом» останутся.
-              </dd>
+              <dt className="font-semibold text-fg">{t.replace}</dt>
+              <dd className="text-fg-muted">{t.replaceAbout(closing)}</dd>
             </div>
           </dl>
-          <p className="text-xs text-fg-subtle">
-            После импорта его можно отменить в сообщении внизу.
-          </p>
+          <p className="text-xs text-fg-subtle">{t.undoNote}</p>
           <div className="flex justify-end gap-2">
             <Dialog.Close type="button" className={BUTTON_SECONDARY}>
-              Отмена
+              {t.cancel}
             </Dialog.Close>
             <button type="button" className={BUTTON_DANGER} onClick={() => onImport(true)}>
-              Заменить
+              {t.replace}
             </button>
             <button
               type="button"
@@ -494,7 +635,7 @@ function ImportDialog({
               autoFocus
               onClick={() => onImport(false)}
             >
-              Добавить
+              {t.add}
             </button>
           </div>
         </Dialog.Content>

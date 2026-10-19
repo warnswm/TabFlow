@@ -3,7 +3,8 @@
  * Pure functions, shared by the pages and the background so that all count the same way.
  */
 import { isSaveableUrl } from './background/tab-rules';
-import { count, GROUPS } from './command-messages';
+import { localized } from './i18n';
+import { words } from './i18n/words';
 import type { QueueItem, TabGroup } from './db/models';
 import { queueTotal, todayPlan, totalText } from './queue/plan';
 
@@ -69,11 +70,27 @@ export function currentTarget(
 export const BADGE_MODES = ['today', 'queue', 'stowed'] as const;
 export type BadgeMode = (typeof BADGE_MODES)[number];
 
-export const BADGE_MODE_LABEL: Record<BadgeMode, string> = {
-  today: 'Видео на сегодня',
-  queue: 'Все видео в очереди',
-  stowed: 'Убранные группы',
-};
+const text = localized({
+  ru: {
+    modes: { today: 'Видео на сегодня', queue: 'Все видео в очереди', stowed: 'Убранные группы' },
+    empty: 'Очередь пуста',
+    today: (total: string) => `На сегодня: ${total}`,
+    queued: (total: string) => `В очереди: ${total}`,
+    stowed: (groups: string) => `Убрано в TabFlow: ${groups}`,
+  },
+  en: {
+    modes: { today: 'Videos for today', queue: 'All queued videos', stowed: 'Stowed groups' },
+    empty: 'Queue is empty',
+    today: (total: string) => `Today: ${total}`,
+    queued: (total: string) => `Queued: ${total}`,
+    stowed: (groups: string) => `Stowed in TabFlow: ${groups}`,
+  },
+});
+
+/** What the badge counts, in words (settings page). */
+export function badgeModeLabel(mode: BadgeMode): string {
+  return text().modes[mode];
+}
 
 /** Badge text: empty for 0 (no badge), «99+» above 99. */
 export function badgeCount(n: number): string {
@@ -91,12 +108,10 @@ export interface Badge {
 export function badge(mode: BadgeMode, queued: readonly QueueItem[], stowed: number): Badge {
   const today = todayPlan(queued);
   const all = queueTotal(queued);
-  const lines = [
-    'TabFlow',
-    queued.length === 0 ? 'Очередь пуста' : `На сегодня: ${totalText(today)}`,
-  ];
-  if (all.count > today.count) lines.push(`В очереди: ${totalText(all)}`);
-  if (stowed > 0) lines.push(`Убрано в TabFlow: ${count(stowed, GROUPS)}`);
+  const t = text();
+  const lines = ['TabFlow', queued.length === 0 ? t.empty : t.today(totalText(today))];
+  if (all.count > today.count) lines.push(t.queued(totalText(all)));
+  if (stowed > 0) lines.push(t.stowed(words().groups(stowed)));
 
   const n = mode === 'today' ? today.count : mode === 'queue' ? all.count : stowed;
   return { text: badgeCount(n), title: lines.join('\n') };

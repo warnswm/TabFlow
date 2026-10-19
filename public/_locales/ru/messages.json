@@ -9,5 +9,26 @@
   "extDescription": {
     "message": "Сворачивает вкладки в группы одним кликом и освобождает память. Группы плитками, очередь видео «на потом». Всё на виду.",
     "description": "Краткое описание (до 132 символов)."
+  },
+  "cmdCollapseAll": {
+    "message": "Свернуть всё"
+  },
+  "cmdStowCurrent": {
+    "message": "Убрать текущую группу или вкладку в TabFlow"
+  },
+  "cmdSleepCurrent": {
+    "message": "Усыпить текущую группу"
+  },
+  "cmdOpenApp": {
+    "message": "Открыть TabFlow"
+  },
+  "cmdQueueCurrent": {
+    "message": "Добавить текущую вкладку в очередь «на потом»"
+  },
+  "cmdOpenQueue": {
+    "message": "Открыть очередь в боковой панели"
+  },
+  "cmdOpenPopup": {
+    "message": "Открыть окно TabFlow на панели расширений"
   }
 }

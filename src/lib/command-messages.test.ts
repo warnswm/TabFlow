@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { describeResponse, plural } from './command-messages';
+import { describeResponse } from './command-messages';
+import { pluralRu as plural } from './i18n/words';
 import type { CommandResponse } from './messages';
 
 const ok = (groups: number, tabs: number, failed = 0): CommandResponse => ({

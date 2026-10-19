@@ -18,7 +18,7 @@ import { hotkeyCommand } from '@/lib/hotkeys';
 import type { Command } from '@/lib/messages';
 import { MENU_IDS, menuCommand, menuQueueUrl } from '@/lib/menus';
 import { accessPatterns } from '@/lib/queue/site-access';
-import { onBadgeModeChanged, storedSettings } from '@/lib/settings';
+import { onBadgeModeChanged, onLanguageSettingChanged, storedSettings } from '@/lib/settings';
 
 // MV3 service worker: it can be stopped at any time, so no state is kept in memory here.
 // Listeners are registered synchronously, otherwise Chrome does not wake the worker for them.
@@ -56,6 +56,7 @@ export default defineBackground(() => {
   onRuntimeMessage((message, sender) => background.handleMessage(message, sender));
   onSiteAccessChanged(syncSites);
   onBadgeModeChanged(() => void background.refreshUi());
+  onLanguageSettingChanged(() => void background.followLanguage());
 
   onMenuClick((click) => {
     // Chrome allows these only right in the click, before anything is awaited.

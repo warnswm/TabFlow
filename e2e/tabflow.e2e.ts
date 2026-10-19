@@ -112,3 +112,33 @@ test('файл не копии TabFlow не меняет данные', async ({
     app.getByText('Файл не прочитан — это не копия TabFlow. Данные TabFlow не изменились.'),
   ).toBeVisible();
 });
+
+test('язык: English на странице настроек меняет интерфейс, меню и «Входящие»', async ({
+  openPage,
+}) => {
+  const app = await openPage('app.html#/settings');
+  await expect(app.getByRole('radio', { name: /Как в Chrome/ })).toBeChecked();
+  await expect(app.getByRole('link', { name: 'Входящие' })).toBeVisible();
+
+  await app.getByRole('radio', { name: 'English', exact: true }).check();
+
+  await expect(app.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  await expect(app.getByRole('link', { name: 'Inbox' })).toBeVisible();
+  await expect(app.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
+  await expect
+    .poll(() =>
+      app.evaluate(async () => {
+        const chrome = (globalThis as unknown as { chrome: Chrome }).chrome;
+        return chrome.action.getTitle({});
+      }),
+    )
+    .toBe('TabFlow\nQueue is empty');
+
+  // Another page opens in the chosen language too.
+  const popup = await openPage('popup.html');
+  await expect(popup.getByRole('button', { name: 'Collapse all' })).toBeVisible();
+
+  await app.getByRole('radio', { name: 'Русский', exact: true }).check();
+  await expect(app.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
+  await expect(app.getByRole('link', { name: 'Входящие' })).toBeVisible();
+});

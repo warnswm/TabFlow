@@ -3,6 +3,7 @@
  * with a fake `TabsApi`. Commands and browser events run through one serial queue.
  */
 import type { TabsEvent } from '../browser-api';
+import { setLanguage } from '../i18n';
 import {
   type Command,
   CommandError,
@@ -77,6 +78,8 @@ export interface Background {
   handleMessage(message: unknown, origin?: MessageOrigin): Promise<CommandResponse>;
   /** Redraws the badge and the menu (a setting changed). */
   refreshUi(): Promise<void>;
+  /** The language setting changed: menu, badge and the name of «Входящие» follow it. */
+  followLanguage(): Promise<void>;
   /** Resolves when all queued work is done (tests). */
   idle(): Promise<void>;
 }
@@ -164,6 +167,12 @@ export function createBackground(ctx: BackgroundContext): Background {
   const ownTabs = new Set<number>();
   let commandRunning = false;
 
+  /** Texts of the background (menu, badge, group names) in the language of the setting. */
+  async function applyLanguage(): Promise<void> {
+    setLanguage(await ctx.settings.language());
+    await ctx.repos.spaces.followLanguage();
+  }
+
   // The badge and the menu follow the database: one refresh after a burst of queued work.
   const refreshUi = createUiRefresher(ctx);
   let uiRefreshQueued = false;
@@ -204,6 +213,7 @@ export function createBackground(ctx: BackgroundContext): Background {
     start() {
       return run(async () => {
         try {
+          await applyLanguage();
           const idsAreStale = await ctx.api.isFirstRunInSession();
           // The extension was reloaded or updated: Chrome closed its placeholders meanwhile.
           // A stowed group opened from Chrome's saved groups meanwhile: links Chrome lacks open too.
@@ -275,6 +285,18 @@ export function createBackground(ctx: BackgroundContext): Background {
     refreshUi() {
       queueUiRefresh();
       return queue.idle();
+    },
+
+    async followLanguage() {
+      await run(async () => {
+        try {
+          await applyLanguage();
+        } catch (error) {
+          logError('language', error);
+        }
+      });
+      // The menu and the badge are redrawn right after, in the new language.
+      await queue.idle();
     },
 
     idle: () => queue.idle(),
