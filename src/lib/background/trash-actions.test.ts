@@ -218,6 +218,49 @@ describe('delete and restore', () => {
     });
   });
 
+  describe('protected from deletion', () => {
+    it('keeps the group, its links and its space', async () => {
+      const work = await t.spaces.create('Работа');
+      const group = await stowedGroup();
+      await t.groups.move(group.id, work.id);
+      await t.groups.update(group.id, { locked: true });
+      const [link] = await t.tabs.listByGroup(group.id);
+      if (!link) throw new Error('no link');
+
+      for (const command of [
+        { type: 'deleteGroup', groupId: group.id },
+        { type: 'deleteTab', tabId: link.id },
+      ] as const) {
+        expect(await t.command(command)).toMatchObject({ ok: false, code: 'group-locked' });
+      }
+      expect(await t.command({ type: 'deleteSpace', spaceId: work.id })).toMatchObject({
+        ok: false,
+        code: 'space-has-locked',
+      });
+      expect(await t.groups.get(group.id)).toBeDefined();
+      expect(await t.tabs.listByGroup(group.id)).toHaveLength(2);
+      expect(await t.spaces.get(work.id)).toBeDefined();
+
+      // Protection off: deleted as usual.
+      await t.groups.update(group.id, { locked: undefined });
+      expectOk(await t.command({ type: 'deleteSpace', spaceId: work.id }));
+      expect(await t.groups.get(group.id)).toBeUndefined();
+    });
+
+    it('«Свернуть всё» leaves a protected group on the strip', async () => {
+      const { group, tabs } = await openGroup();
+      await t.groups.update(group.id, { locked: true });
+      t.api.addTab({ url: 'https://loose.example/' });
+      await t.settle();
+
+      const result = expectOk(await t.command({ type: 'collapseAll' }));
+
+      expect(result).toMatchObject({ groups: 1, tabs: 2, kept: 1 });
+      expect((await t.groups.get(group.id))?.state).toBe('active');
+      for (const tab of tabs) expect(await t.api.getTab(tab.id)).toBeDefined();
+    });
+  });
+
   it('refuses to restore what is not in the trash', async () => {
     const group = await stowedGroup();
 

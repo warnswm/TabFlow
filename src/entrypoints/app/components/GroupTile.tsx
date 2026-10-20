@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Archive, ArrowRight, GripVertical, Moon, Play } from 'lucide-react';
+import { Archive, ArrowRight, GripVertical, Lock, Moon, Play, Star } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import type { GroupView } from '@/lib/app/overview';
 import { displayHost } from '@/lib/app/overview';
@@ -43,6 +43,8 @@ const text = localized({
       `${n} ${pluralRu(n, ['ссылка совпадает', 'ссылки совпадают', 'ссылок совпадают'])}`,
     asleep: 'Спит',
     stowed: 'Убрана в TabFlow',
+    favorite: 'В избранном',
+    locked: 'Защищена от удаления',
   },
   en: {
     active: 'Active',
@@ -57,6 +59,8 @@ const text = localized({
     linkHits: (n: number) => `${n} ${pluralEn(n, ['link matches', 'links match'])}`,
     asleep: 'Asleep',
     stowed: 'Stowed in TabFlow',
+    favorite: 'Favorite',
+    locked: 'Protected from deletion',
   },
 });
 
@@ -127,13 +131,17 @@ export function GroupTile(props: GroupTileProps) {
       { name: group.title, quiet: group.state !== 'stowed' },
     );
   const linkHits = match?.tabIds.size ?? 0;
+  const marks = [
+    group.favorite && text().favorite.toLowerCase(),
+    group.locked && text().locked.toLowerCase(),
+  ].filter(Boolean);
 
   return (
     <article
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...listeners}
-      aria-label={`${title}, ${statusText(group, now).toLowerCase()}`}
+      aria-label={[title, statusText(group, now).toLowerCase(), ...marks].join(', ')}
       className={`group/tile flex flex-col overflow-hidden rounded-lg border ${TILE[group.state]} ${isDragging ? 'opacity-50 outline-2 outline-offset-2 outline-accent outline-dashed' : ''} ${focused ? 'ring-2 ring-focus ring-offset-2 ring-offset-bg' : ''}`}
     >
       <button
@@ -155,6 +163,10 @@ export function GroupTile(props: GroupTileProps) {
           <h3 className="min-w-0 truncate text-[15px] leading-[22px] font-semibold">
             <Highlighted text={title} terms={match?.title ? terms : []} />
           </h3>
+          {group.favorite && (
+            <Star aria-hidden className="size-3.5 shrink-0 fill-current text-fg-muted" />
+          )}
+          {group.locked && <Lock aria-hidden className="size-3.5 shrink-0 text-fg-muted" />}
           <div className="ml-auto flex items-center">
             {sortable && (
               <button
@@ -169,6 +181,7 @@ export function GroupTile(props: GroupTileProps) {
             )}
             <GroupMenu
               group={group}
+              tabs={tabs}
               spaces={spaces}
               onOpenLinks={onOpenLinks}
               onEdit={onEdit}
@@ -192,6 +205,11 @@ export function GroupTile(props: GroupTileProps) {
             </button>
           )}
         </div>
+        {group.note && (
+          <p title={group.note} className="truncate pl-[18px] text-xs text-fg-subtle">
+            <Highlighted text={group.note} terms={match ? terms : []} />
+          </p>
+        )}
         {linkHits > 0 && (
           <p className="pl-[18px] text-xs text-fg-subtle">{text().linkHits(linkHits)}</p>
         )}

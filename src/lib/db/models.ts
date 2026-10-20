@@ -62,7 +62,17 @@ export interface TabGroup extends BaseRecord {
   chromeGroupId?: number;
   /** Window of the native group while it is on the tab strip. */
   windowId?: number;
+  /** «Зачем отложил»: a short text on the tile, found by the search (no index). */
   note?: string;
+  /** «В избранном»: the group stands first in its space and on the tab strip (no index). */
+  favorite?: boolean;
+  /**
+   * «Защитить от удаления»: TabFlow does not delete the group, its links or its space, and
+   * «Свернуть всё» leaves it on the strip. Closed in Chrome, it is still stowed (no index).
+   */
+  locked?: boolean;
+  /** «Оставить» in «Давно не открывали»: not shown there again for a while (no index). */
+  reviewedAt?: Timestamp;
   /** «Не засыпать автоматически»: autosleep leaves the group alone (no index). */
   keepAwake?: boolean;
   /** Asleep by autosleep, not by the user («Уснула сама»); cleared on the next state change. */
@@ -76,6 +86,8 @@ export interface SavedTab extends BaseRecord {
   favIconUrl?: string;
   order: number;
   pinned: boolean;
+  /** «Зачем отложил»: a short text under the link, found by the search (no index). */
+  note?: string;
   /** Id of the open Chrome tab while the group is on the tab strip; cleared when stowed. */
   chromeTabId?: number;
 }
@@ -107,6 +119,8 @@ export interface QueueItem extends BaseRecord {
   status: QueueStatus;
   order: number;
   watchedAt?: Timestamp;
+  /** «Оставить» in «Давно не открывали»: not shown there again for a while (no index). */
+  reviewedAt?: Timestamp;
 }
 
 /** A link of a saved layout. The copy of the address opens the page when the link is gone. */

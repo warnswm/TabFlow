@@ -8,8 +8,9 @@
  * - open tabs — the one on screen, then a pinned one, then a tab of a TabFlow group, then the one
  *   further into a YouTube video (`&t=`), then the one used last. Tabs on screen and pinned tabs
  *   are never closed;
- * - links — the one whose tab is open, otherwise the oldest; links with an open tab are never
- *   removed here (the tabs are compared above).
+ * - links — the one whose tab is open, then one of a group protected from deletion, otherwise the
+ *   oldest; links with an open tab are never removed here (the tabs are compared above).
+ * Tabs and links of a group protected from deletion are never closed or removed.
  */
 import type { BrowserTab } from '../browser-api';
 import type { Id, SavedTab, TabGroup } from '../db/models';
@@ -53,6 +54,8 @@ export function findDuplicates(
   links: readonly SavedTab[],
 ): Duplicates {
   const groupTitles = new Map(groups.map((group) => [group.id, group.title]));
+  const locked = new Set(groups.filter((group) => group.locked).map((group) => group.id));
+  const isLocked = (link?: SavedTab) => link !== undefined && locked.has(link.groupId);
   const liveLinks = links.filter((link) => groupTitles.has(link.groupId));
   const linkOfTab = new Map<number, SavedTab>();
   for (const link of liveLinks) {
@@ -75,12 +78,15 @@ export function findDuplicates(
     if (tabs.length < 2) continue;
     const [keep, ...rest] = [...tabs].sort(
       (a, b) =>
+        Number(isLocked(linkOfTab.get(b.id))) - Number(isLocked(linkOfTab.get(a.id))) ||
         tabRank(b, linkOfTab) - tabRank(a, linkOfTab) ||
         b.lastAccessed - a.lastAccessed ||
         a.id - b.id,
     );
     if (!keep) continue;
-    const extras = rest.filter((tab) => !tab.active && !tab.pinned);
+    const extras = rest.filter(
+      (tab) => !tab.active && !tab.pinned && !isLocked(linkOfTab.get(tab.id)),
+    );
     if (extras.length === 0) continue;
     for (const tab of extras) closing.add(tab.id);
     const item = (tab: BrowserTab): DuplicateItem => {
@@ -110,10 +116,13 @@ export function findDuplicates(
     if (same.length < 2) continue;
     const [keep, ...rest] = [...same].sort(
       (a, b) =>
-        Number(isOpen(b)) - Number(isOpen(a)) || a.createdAt - b.createdAt || a.order - b.order,
+        Number(isOpen(b)) - Number(isOpen(a)) ||
+        Number(isLocked(b)) - Number(isLocked(a)) ||
+        a.createdAt - b.createdAt ||
+        a.order - b.order,
     );
     if (!keep) continue;
-    const extras = rest.filter((link) => !isOpen(link));
+    const extras = rest.filter((link) => !isOpen(link) && !isLocked(link));
     if (extras.length === 0) continue;
     const item = (link: SavedTab): DuplicateItem => ({
       kind: 'link',

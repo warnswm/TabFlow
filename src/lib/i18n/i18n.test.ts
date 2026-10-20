@@ -135,7 +135,13 @@ describe('English texts', () => {
 
   it('labels the filters and the settings page', () => {
     setLanguage('en');
-    expect(STATE_FILTERS.map((chip) => chip.label)).toEqual(['All', 'Active', 'Asleep', 'Stowed']);
+    expect(STATE_FILTERS.map((chip) => chip.label)).toEqual([
+      'All',
+      'Active',
+      'Asleep',
+      'Stowed',
+      'Favorites',
+    ]);
     expect(emptyFilterText('asleep', '')).toBe('No groups asleep.');
     expect(emptyFilterText('all', 'react')).toBe('Nothing found for “react”.');
     expect(hotkeyRows([])[0]?.description).toBe('Collapse all');

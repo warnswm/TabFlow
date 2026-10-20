@@ -29,6 +29,10 @@ export async function moveTab(
   const fromIndex = sourceTabs.findIndex((item) => item.id === tab.id);
   const sameGroup = source.id === target.id;
   const emptiesSource = !sameGroup && sourceTabs.length <= 1;
+  // The last link would take a group protected from deletion to the trash.
+  if (emptiesSource && source.locked) {
+    throw new CommandError('group-locked', `Group ${source.id} is locked`);
+  }
   const sourceOnStrip = source.chromeGroupId !== undefined;
   const targetOnStrip = target.chromeGroupId !== undefined && target.windowId !== undefined;
   const chromeTab =

@@ -14,7 +14,7 @@ export interface NewTab {
 }
 
 export type TabPatch = Partial<
-  Pick<SavedTab, 'url' | 'title' | 'favIconUrl' | 'pinned' | 'chromeTabId'>
+  Pick<SavedTab, 'url' | 'title' | 'favIconUrl' | 'pinned' | 'chromeTabId' | 'note'>
 >;
 
 export class TabRepository {

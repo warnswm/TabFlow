@@ -4,7 +4,7 @@ import { loadOverview, type Overview } from '@/lib/app/overview';
 import { routeHash } from '@/lib/app/route';
 import { buildSearchIndex } from '@/lib/app/search';
 import { repositories } from '@/lib/db';
-import { loadBadgeMode, loadRestoreMode } from '@/lib/settings';
+import { loadBadgeMode, loadRestoreMode, loadReviewDays } from '@/lib/settings';
 import { useLiveQuery } from '@/lib/use-live-query';
 import { CommandPalette } from './components/CommandPalette';
 import { GroupDragChip } from './components/GroupTile';
@@ -12,6 +12,7 @@ import { Sidebar, SpaceGhost } from './components/Sidebar';
 import { SpaceView } from './components/SpaceView';
 import { SettingsView } from './components/SettingsView';
 import { SideBySideView } from './components/SideBySideView';
+import { ReviewView } from './components/ReviewView';
 import { TidyView } from './components/TidyView';
 import { TileDialog } from './components/TileDialog';
 import { Toaster } from './components/Toaster';
@@ -52,7 +53,10 @@ export default function App() {
     (route.view === 'space' && overview?.spaces.find((view) => view.space.id === route.spaceId)) ||
     overview?.spaces[0];
   const shownSpaceId =
-    route.view === 'trash' || route.view === 'settings' || route.view === 'tidy'
+    route.view === 'trash' ||
+    route.view === 'settings' ||
+    route.view === 'tidy' ||
+    route.view === 'review'
       ? route.view
       : spaceView?.space.id;
 
@@ -61,6 +65,7 @@ export default function App() {
     void repositories.spaces.ensureDefault();
     void loadRestoreMode().then((mode) => useUi.getState().setRestoreMode(mode, false));
     void loadBadgeMode().then((mode) => useUi.getState().setBadgeMode(mode, false));
+    void loadReviewDays().then((days) => useUi.getState().setReviewDays(days, false));
 
     function onKeyDown(event: KeyboardEvent) {
       // `code`, not `key`: works with the Russian layout too.
@@ -123,6 +128,8 @@ export default function App() {
               <SettingsView overview={overview} />
             ) : route.view === 'tidy' ? (
               <TidyView overview={overview} />
+            ) : route.view === 'review' ? (
+              <ReviewView overview={overview} />
             ) : (
               spaceView && (
                 <SpaceView

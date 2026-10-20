@@ -20,9 +20,13 @@ const errorsRu: ErrorTexts = {
   'group-not-on-tab-strip':
     'Группа убрана в TabFlow — усыпить можно только группу на панели вкладок.',
   'group-empty': 'В группе нет вкладок — восстанавливать нечего.',
+  'group-locked':
+    'Группа защищена от удаления — она и её ссылки остались на месте. Защита снимается в меню «⋯» группы.',
   'restore-failed': 'Не удалось восстановить вкладки — страницы недоступны. Ссылки сохранены.',
   'space-not-found': 'Пространство не найдено — возможно, оно уже удалено.',
   'space-protected': '«Входящие» не удаляются — сюда попадают свёрнутые вкладки.',
+  'space-has-locked':
+    'В пространстве есть группы, защищённые от удаления, — оно осталось на месте. Защита снимается в меню «⋯» группы.',
   'tab-not-found': 'Ссылка не найдена — возможно, она уже удалена.',
   'tab-not-in-group': 'Вкладка не в группе — усыпить можно только группу.',
   'tab-not-saveable':
@@ -40,9 +44,13 @@ const errorsEn: ErrorTexts = {
   'group-not-on-tab-strip':
     'The group is stowed in TabFlow — only a group on the tab strip can be put to sleep.',
   'group-empty': 'The group has no tabs — nothing to restore.',
+  'group-locked':
+    'The group is protected from deletion — it stays with its links. Protection is turned off in the group’s “⋯” menu.',
   'restore-failed': 'Couldn’t restore the tabs — pages unavailable. Links are saved.',
   'space-not-found': 'Space not found — it may have been deleted already.',
   'space-protected': 'Inbox stays — collapsed tabs go there.',
+  'space-has-locked':
+    'The space has groups protected from deletion — it stays. Protection is turned off in the group’s “⋯” menu.',
   'tab-not-found': 'Link not found — it may have been deleted already.',
   'tab-not-in-group': 'The tab is not in a group — only a group can be put to sleep.',
   'tab-not-saveable': 'Pinned and browser tabs stay open — only sites and files are saved.',
@@ -57,6 +65,10 @@ const text = localized({
     errors: errorsRu,
     failedNote: (n: number) => ` Не удалось: ${words().tabs(n)} — ссылки сохранены.`,
     collapseNothing: 'Сворачивать нечего — открыты только закреплённые и служебные вкладки.',
+    collapseOnlyKept:
+      'Сворачивать нечего — открыты только защищённые группы, закреплённые и служебные вкладки.',
+    keptNote: (groups: number) =>
+      ` Защищённые от удаления остались на панели: ${words().groups(groups)}.`,
     collapsed: (groups: number, tabs: number) =>
       `Свёрнуто: ${words().groups(groups)} · ${words().tabs(tabs)}. Ссылки сохранены во «Входящих».`,
     asleep: (title: string, tabs: number) =>
@@ -133,6 +145,10 @@ const text = localized({
     errors: errorsEn,
     failedNote: (n: number) => ` Couldn’t: ${words().tabs(n)} — links are saved.`,
     collapseNothing: 'Nothing to collapse — only pinned and browser tabs are open.',
+    collapseOnlyKept:
+      'Nothing to collapse — only protected groups, pinned and browser tabs are open.',
+    keptNote: (groups: number) =>
+      ` Protected from deletion, kept on the tab strip: ${words().groups(groups)}.`,
     collapsed: (groups: number, tabs: number) =>
       `Collapsed: ${words().groups(groups)} · ${words().tabs(tabs)}. Links are saved in Inbox.`,
     asleep: (title: string, tabs: number) =>
@@ -217,13 +233,14 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
     return t.errors[response.code] ?? t.errors.unexpected;
   }
 
-  const { groups, tabs, failed, groupTitle } = response.result;
+  const { groups, tabs, failed, groupTitle, kept = 0 } = response.result;
   const title = words().quote(name || groupTitle || words().untitled);
   const failedNote = failed > 0 ? t.failedNote(failed) : '';
 
   switch (type) {
     case 'collapseAll':
-      return tabs === 0 ? t.collapseNothing : t.collapsed(groups, tabs);
+      if (tabs === 0) return kept > 0 ? t.collapseOnlyKept : t.collapseNothing;
+      return t.collapsed(groups, tabs) + (kept > 0 ? t.keptNote(kept) : '');
     case 'sleepGroup':
     case 'sleepCurrent':
       return t.asleep(title, tabs) + failedNote;

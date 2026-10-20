@@ -255,6 +255,9 @@ function runAction(action: PaletteAction) {
     case 'openTidy':
       navigate({ view: 'tidy' });
       break;
+    case 'openReview':
+      navigate({ view: 'review' });
+      break;
     case 'newSpace':
       ui.setNewSpaceOpen(true);
       break;

@@ -114,6 +114,31 @@ describe('parseBackup', () => {
     }
   });
 
+  it('keeps notes, favorites, the lock and «Оставить»', async () => {
+    const t = setupTestDb();
+    const { stowed } = await fill(t);
+    const [link] = await t.tabs.listByGroup(stowed.id);
+    if (!link) throw new Error('no link');
+    await t.groups.update(stowed.id, { note: 'Прочитать к пятнице', locked: true });
+    await t.groups.setFavorite(stowed.id, true);
+    await t.groups.markReviewed(stowed.id);
+    await t.tabs.update(link.id, { note: 'Глава 2' });
+    const [video] = await t.queue.list();
+    if (!video) throw new Error('no video');
+    await t.queue.markReviewed(video.id);
+
+    const backup = parseBackup(backupText(await exported(t)));
+
+    expect(backup.groups.find((g) => g.id === stowed.id)).toMatchObject({
+      note: 'Прочитать к пятнице',
+      favorite: true,
+      locked: true,
+      reviewedAt: t.now.value,
+    });
+    expect(backup.tabs.find((tab) => tab.id === link.id)?.note).toBe('Глава 2');
+    expect(backup.queue.find((v) => v.id === video.id)?.reviewedAt).toBe(t.now.value);
+  });
+
   it('skips records that do not fit and drops unknown fields', () => {
     const backup = parseBackup(
       JSON.stringify({

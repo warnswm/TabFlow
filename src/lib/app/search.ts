@@ -1,5 +1,5 @@
 /**
- * Full-text search over group titles and saved links (title, host and path of the URL).
+ * Full-text search over groups (title, note) and saved links (title, note, host and path of the URL).
  * Prefix and typo-tolerant, case- and «ё»-insensitive. The index lives in memory and is rebuilt
  * from the overview whenever the database changes — a few thousand records take milliseconds.
  */
@@ -18,6 +18,8 @@ interface SearchDoc {
   title: string;
   host: string;
   path: string;
+  /** «Зачем отложил». */
+  note: string;
 }
 
 export interface GroupHit {
@@ -32,9 +34,9 @@ export interface TabHit {
 }
 
 export interface SearchHits {
-  /** Groups whose title matches, best first. */
+  /** Groups whose title or note matches, best first. */
   groups: GroupHit[];
-  /** Links whose title or address matches, best first. */
+  /** Links whose title, note or address matches, best first. */
   tabs: TabHit[];
   /** Words of the records that matched — for highlighting. */
   terms: string[];
@@ -60,7 +62,7 @@ function urlPath(url: string): string {
 
 export function buildSearchIndex(overview: Overview): SearchIndex {
   const index = new MiniSearch<SearchDoc>({
-    fields: ['title', 'host', 'path'],
+    fields: ['title', 'note', 'host', 'path'],
     storeFields: ['kind', 'groupId', 'tabId', 'spaceId'],
     processTerm: (term) => normalizeText(term),
     searchOptions: {
@@ -83,6 +85,7 @@ export function buildSearchIndex(overview: Overview): SearchIndex {
         title: group.title,
         host: '',
         path: '',
+        note: group.note ?? '',
       });
       for (const tab of tabs) {
         docs.push({
@@ -94,6 +97,7 @@ export function buildSearchIndex(overview: Overview): SearchIndex {
           title: tab.title,
           host: displayHost(tab.url),
           path: urlPath(tab.url),
+          note: tab.note ?? '',
         });
       }
     }

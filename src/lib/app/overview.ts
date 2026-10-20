@@ -4,6 +4,7 @@
  */
 import type { Repositories } from '../db';
 import type { GroupState, Id, SavedTab, Space, TabGroup } from '../db/models';
+import { byFavoriteThenOrder } from '../db/order';
 import { getLanguage } from '../i18n';
 
 export interface GroupView {
@@ -57,7 +58,8 @@ export function buildOverview(
     tabCount: 0,
   };
 
-  for (const group of [...groups].sort(byOrder)) {
+  // «В избранном» first in every space.
+  for (const group of [...groups].sort(byFavoriteThenOrder)) {
     const view = views.get(group.spaceId) ?? fallback;
     if (!view) continue;
     const groupTabs = tabsByGroup.get(group.id) ?? [];

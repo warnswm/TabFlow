@@ -117,11 +117,15 @@ export function SpaceView({ view, overview, index }: SpaceViewProps) {
       const target = dragData(over);
       if (moved?.type !== 'group' || target?.type !== 'group' || active.id === over?.id) return;
       if (moved.group.spaceId !== space.id) return;
+      // Favorites stay first: a tile dropped across their border stays in its own block.
+      const favorites = new Set(
+        ordered.filter((item) => item.group.favorite).map((item) => item.group.id),
+      );
       const ids = moveId(
         ordered.map((item) => item.group.id),
         moved.group.id,
         target.group.id,
-      );
+      ).sort((a, b) => Number(favorites.has(b)) - Number(favorites.has(a)));
       setDropped({ base: groups, ids });
       repositories.groups
         .place(moved.group.id, space.id, ids.indexOf(moved.group.id))

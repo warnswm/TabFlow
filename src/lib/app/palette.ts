@@ -16,6 +16,7 @@ export type PaletteAction =
   | { type: 'openTrash' }
   /** «Порядок»: closing duplicates, sorting tabs into groups. */
   | { type: 'openTidy' }
+  | { type: 'openReview' }
   | { type: 'newSpace' }
   | { type: 'goToSpace'; spaceId: Id }
   | { type: 'sleepGroup' | 'stowGroup' | 'restoreGroup'; group: TabGroup };
@@ -58,6 +59,7 @@ const text = localized({
     newSpace: 'Новое пространство',
     duplicates: 'Закрыть дубликаты',
     sortTabs: 'Разложить вкладки по группам',
+    review: 'Давно не открывали — разобрать',
   },
   en: {
     sleep: (name: string) => `Put group ${name} to sleep`,
@@ -70,6 +72,7 @@ const text = localized({
     newSpace: 'New space',
     duplicates: 'Close duplicates',
     sortTabs: 'Sort tabs into groups',
+    review: 'Not opened for a while — review',
   },
 });
 
@@ -106,6 +109,7 @@ function fixedActions(overview: Overview, currentSpaceId?: Id): PaletteActionIte
       })),
     { id: 'duplicates', label: t.duplicates, action: { type: 'openTidy' } },
     { id: 'sortTabs', label: t.sortTabs, action: { type: 'openTidy' } },
+    { id: 'review', label: t.review, action: { type: 'openReview' } },
     { id: 'openTrash', label: t.trash, action: { type: 'openTrash' } },
     { id: 'newSpace', label: t.newSpace, action: { type: 'newSpace' } },
   ];

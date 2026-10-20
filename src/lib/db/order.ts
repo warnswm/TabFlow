@@ -40,6 +40,30 @@ export function placeAt(
   return { reorder: ids };
 }
 
+/**
+ * Order of the groups of a space: «В избранном» first, then by `order`. The keys keep it too
+ * (`groups.place` never moves a group out of its block), the comparator only covers records that
+ * came in out of place (import, trash) until the next move rewrites them.
+ */
+export function byFavoriteThenOrder<T extends { order: number; favorite?: boolean }>(
+  a: T,
+  b: T,
+): number {
+  return Number(b.favorite === true) - Number(a.favorite === true) || a.order - b.order;
+}
+
+/** `index` kept inside the block of `favorite` items of a list sorted by `byFavoriteThenOrder`. */
+export function indexInBlock(
+  others: readonly { favorite?: boolean }[],
+  favorite: boolean,
+  index: number,
+): number {
+  const favorites = others.filter((item) => item.favorite === true).length;
+  return favorite
+    ? Math.max(0, Math.min(index, favorites))
+    : Math.max(favorites, Math.min(index, others.length));
+}
+
 /** Key for an item appended after the last one. */
 export function orderAfterLast(items: readonly { order: number }[]): number {
   const last = items.reduce<number | undefined>(

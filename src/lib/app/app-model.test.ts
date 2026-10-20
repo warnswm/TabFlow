@@ -243,6 +243,8 @@ describe('route', () => {
     expect(routeHash({ view: 'settings' })).toBe('#/settings');
     expect(parseRoute('#/tidy')).toEqual({ view: 'tidy' });
     expect(routeHash({ view: 'tidy' })).toBe('#/tidy');
+    expect(parseRoute('#/review')).toEqual({ view: 'review' });
+    expect(routeHash({ view: 'review' })).toBe('#/review');
     expect(parseRoute('#/space/a%2Fb')).toEqual({ view: 'space', spaceId: 'a/b' });
     expect(routeHash({ view: 'space', spaceId: 'a/b' })).toBe('#/space/a%2Fb');
     expect(routeHash({ view: 'space' })).toBe('#/');

@@ -1,7 +1,7 @@
 import { Dexie } from 'dexie';
 import type { TabFlowDB } from '../db';
 import type { GroupColor, GroupState, Id, TabGroup } from '../models';
-import { ORDER_STEP, orderAfterLast, placeAt } from '../order';
+import { byFavoriteThenOrder, indexInBlock, ORDER_STEP, orderAfterLast, placeAt } from '../order';
 import { type Clock, isLive, liveOnly, newId, RecordNotFoundError, systemClock } from './common';
 import { SpaceRepository } from './spaces';
 
@@ -17,7 +17,7 @@ export interface NewGroup {
 export type GroupPatch = Partial<
   Pick<
     TabGroup,
-    'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId' | 'keepAwake' | 'autoSlept'
+    'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId' | 'keepAwake' | 'autoSlept' | 'locked'
   >
 >;
 
@@ -33,13 +33,13 @@ export class GroupRepository {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  /** Live groups of a space sorted by `order`. */
+  /** Live groups of a space: «В избранном» first, then by `order` (as the tiles stand). */
   async listBySpace(spaceId: Id): Promise<TabGroup[]> {
     const groups = await this.db.groups
       .where('[spaceId+order]')
       .between([spaceId, Dexie.minKey], [spaceId, Dexie.maxKey])
       .toArray();
-    return liveOnly(groups);
+    return liveOnly(groups).sort(byFavoriteThenOrder);
   }
 
   /** All live groups (any space, any state). */
@@ -169,10 +169,15 @@ export class GroupRepository {
   /** Moves the group to another space (or another position); appends to the end by default. */
   async move(id: Id, spaceId: Id, order?: number): Promise<void> {
     await this.db.transaction('rw', this.db.spaces, this.db.groups, async () => {
-      await this.requireLive(id);
+      const group = await this.requireLive(id);
       const space = await this.db.spaces.get(spaceId);
       if (!space || !isLive(space)) throw new RecordNotFoundError('Space', spaceId);
 
+      if (order === undefined && group.favorite === true) {
+        // A favorite goes to the end of the favorites of its new space.
+        await this.placeInTransaction(group, spaceId, Number.MAX_SAFE_INTEGER);
+        return;
+      }
       await this.db.groups.update(id, {
         spaceId,
         order: order ?? orderAfterLast(await this.listBySpace(spaceId)),
@@ -184,24 +189,55 @@ export class GroupRepository {
   /**
    * Puts the group at `index` among the groups of `spaceId` — its own space or another one
    * (drag & drop). Only the moved group is written, unless its neighbours leave no room for a key.
+   * The group stays in its block: a favorite among the favorites, the others after them.
    */
   async place(id: Id, spaceId: Id, index: number): Promise<void> {
     await this.db.transaction('rw', this.db.spaces, this.db.groups, async () => {
-      await this.requireLive(id);
+      const group = await this.requireLive(id);
       const space = await this.db.spaces.get(spaceId);
       if (!space || !isLive(space)) throw new RecordNotFoundError('Space', spaceId);
-
-      const now = this.clock();
-      const placement = placeAt(await this.listBySpace(spaceId), id, index);
-      if ('order' in placement) {
-        await this.db.groups.update(id, { spaceId, order: placement.order, updatedAt: now });
-        return;
-      }
-      await this.db.groups.update(id, { spaceId, updatedAt: now });
-      await this.db.groups.bulkUpdate(
-        placement.reorder.map((key, i) => ({ key, changes: { order: (i + 1) * ORDER_STEP } })),
-      );
+      await this.placeInTransaction(group, spaceId, index);
     });
+  }
+
+  /**
+   * «В избранном»: a favorite goes to the end of the favorites of its space, a group taken out of
+   * them — to the start of the others. Its tiles and its place on the strip follow.
+   */
+  async setFavorite(id: Id, favorite: boolean): Promise<void> {
+    await this.db.transaction('rw', this.db.groups, async () => {
+      const group = await this.requireLive(id);
+      const changed = { ...group, favorite: favorite || undefined };
+      await this.db.groups.update(id, { favorite: changed.favorite });
+      await this.placeInTransaction(changed, group.spaceId, favorite ? Number.MAX_SAFE_INTEGER : 0);
+    });
+  }
+
+  private async placeInTransaction(group: TabGroup, spaceId: Id, index: number): Promise<void> {
+    const now = this.clock();
+    const list = await this.listBySpace(spaceId);
+    const others = list.filter((item) => item.id !== group.id);
+    const at = indexInBlock(others, group.favorite === true, index);
+    // The moved group with its current flag: the list may still hold its old one.
+    const placement = placeAt(
+      list.map((item) => (item.id === group.id ? group : item)),
+      group.id,
+      at,
+    );
+    if ('order' in placement) {
+      await this.db.groups.update(group.id, { spaceId, order: placement.order, updatedAt: now });
+      return;
+    }
+    await this.db.groups.update(group.id, { spaceId, updatedAt: now });
+    await this.db.groups.bulkUpdate(
+      placement.reorder.map((key, i) => ({ key, changes: { order: (i + 1) * ORDER_STEP } })),
+    );
+  }
+
+  /** «Оставить» in «Давно не открывали». Not a change of the group: `updatedAt` stays. */
+  async markReviewed(id: Id): Promise<void> {
+    await this.requireLive(id);
+    await this.db.groups.update(id, { reviewedAt: this.clock() });
   }
 
   /** Moves the group and its live tabs to the trash with one shared `deletedAt`. */

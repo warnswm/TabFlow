@@ -188,6 +188,7 @@ function readGroup(fields: Fields): BackupGroup | undefined {
     : 'stowed';
   const note = optional(fields.note, isText);
   const stateChangedAt = optional(fields.stateChangedAt, isTime);
+  const reviewedAt = optional(fields.reviewedAt, isTime);
   return {
     ...record,
     spaceId: fields.spaceId,
@@ -198,6 +199,9 @@ function readGroup(fields: Fields): BackupGroup | undefined {
     ...(stateChangedAt !== undefined && { stateChangedAt }),
     ...(note !== undefined && { note: note.slice(0, 5000) }),
     ...(fields.keepAwake === true && { keepAwake: true }),
+    ...(fields.favorite === true && { favorite: true }),
+    ...(fields.locked === true && { locked: true }),
+    ...(reviewedAt !== undefined && { reviewedAt }),
   };
 }
 
@@ -207,6 +211,7 @@ function readTab(fields: Fields): BackupTab | undefined {
   if (!record || !isId(fields.groupId) || !isText(url) || !isSaveableUrl(url)) return undefined;
   if (!isNumber(fields.order)) return undefined;
   const favIconUrl = optional(fields.favIconUrl, isText);
+  const note = optional(fields.note, isText);
   return {
     ...record,
     groupId: fields.groupId,
@@ -215,6 +220,7 @@ function readTab(fields: Fields): BackupTab | undefined {
     order: fields.order,
     pinned: fields.pinned === true,
     ...(favIconUrl !== undefined && { favIconUrl }),
+    ...(note !== undefined && note !== '' && { note: note.slice(0, 5000) }),
   };
 }
 
@@ -231,6 +237,7 @@ function readVideo(fields: Fields): BackupVideo | undefined {
   };
   const durationSec = optional(fields.durationSec, isSeconds);
   const watchedAt = optional(fields.watchedAt, isTime);
+  const reviewedAt = optional(fields.reviewedAt, isTime);
   return {
     ...record,
     url,
@@ -245,6 +252,7 @@ function readVideo(fields: Fields): BackupVideo | undefined {
     status,
     order: fields.order,
     ...(status === 'watched' && watchedAt !== undefined && { watchedAt }),
+    ...(reviewedAt !== undefined && { reviewedAt }),
   };
 }
 

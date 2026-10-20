@@ -73,6 +73,19 @@ describe('search', () => {
     expect(index.search('hooks')?.tabs.map((hit) => hit.tabId)).toEqual(['r1']);
   });
 
+  it('finds groups and links by their notes', () => {
+    const overview = buildOverview(
+      [space('inbox', 1, { isDefault: true })],
+      [group('g', 'inbox', { title: 'Отпуск', note: 'Сравнить отели до пятницы' })],
+      [{ ...tab('t', 'g', 'https://example.com/hotel', 'Отель'), note: 'Бассейн, завтрак' }],
+    );
+    const index = buildSearchIndex(overview);
+
+    expect(index.search('пятниц')?.groups.map((hit) => hit.groupId)).toEqual(['g']);
+    expect(index.search('завтрак')?.tabs.map((hit) => hit.tabId)).toEqual(['t']);
+    expect(index.search('отель бассейн')?.tabs.map((hit) => hit.tabId)).toEqual(['t']);
+  });
+
   it('matches word prefixes, small typos, any case and «ё» as «е»', () => {
     const index = buildSearchIndex(sample());
     expect(index.search('иссл')?.groups.map((hit) => hit.groupId)).toEqual(['react']);
@@ -126,14 +139,32 @@ describe('filters', () => {
   });
 
   it('counts groups by state among the search results', () => {
-    expect(stateCounts(views())).toEqual({ all: 2, active: 1, asleep: 1, stowed: 0 });
+    expect(stateCounts(views())).toEqual({ all: 2, active: 1, asleep: 1, stowed: 0, favorite: 0 });
     const hits = buildSearchIndex(sample()).search('chrome', 'work');
     expect(stateCounts(views(), hits && matchesByGroup(hits))).toEqual({
       all: 1,
       active: 0,
       asleep: 1,
       stowed: 0,
+      favorite: 0,
     });
+  });
+
+  it('shows favorites first and on their own chip', () => {
+    const overview = buildOverview(
+      [space('inbox', 1, { isDefault: true })],
+      [
+        group('a', 'inbox', { order: 1 }),
+        group('b', 'inbox', { order: 2, favorite: true, state: 'stowed' }),
+        group('c', 'inbox', { order: 3 }),
+      ],
+      [],
+    );
+    const groups = overview.spaces[0]?.groups ?? [];
+    expect(groups.map((v) => v.group.id)).toEqual(['b', 'a', 'c']);
+    expect(filterGroups(groups, 'favorite').map((v) => v.group.id)).toEqual(['b']);
+    expect(stateCounts(groups)).toMatchObject({ all: 3, stowed: 1, favorite: 1 });
+    expect(emptyFilterText('favorite', '')).toContain('Избранных групп нет');
   });
 
   it('explains an empty result', () => {
@@ -152,6 +183,7 @@ describe('palette', () => {
       'Перейти в «Входящие»',
       'Закрыть дубликаты',
       'Разложить вкладки по группам',
+      'Давно не открывали — разобрать',
       'Корзина',
       'Новое пространство',
     ]);

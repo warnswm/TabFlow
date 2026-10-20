@@ -97,6 +97,19 @@ describe('tiles follow the tab strip', () => {
     expect(await tiles(work.id)).toEqual(['Y', 'X']);
   });
 
+  it('keeps favorites first on the strip and among the tiles', async () => {
+    await openGroups('A', 'B', 'C');
+    await t.groups.setFavorite((await groupNamed('C')).id, true);
+    expectOk(await t.command({ type: 'arrangeGroups' }));
+    expect(await strip()).toEqual(['·', 'C', 'A', 'B']);
+
+    // B dragged in front of the favorite moves only among the others.
+    await drag('B', 1);
+
+    expect(await tiles()).toEqual(['C', 'B', 'A']);
+    expect(await strip()).toEqual(['·', 'C', 'B', 'A']);
+  });
+
   it('writes nothing when the order of groups did not change', async () => {
     await openGroups('A', 'B');
     const place = vi.spyOn(t.groups, 'place');

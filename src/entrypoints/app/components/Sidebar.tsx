@@ -1,7 +1,16 @@
 import { useDndContext, useDndMonitor, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { BrushCleaning, CornerDownLeft, Folder, Inbox, Plus, Settings, Trash } from 'lucide-react';
+import {
+  BrushCleaning,
+  CornerDownLeft,
+  Folder,
+  History,
+  Inbox,
+  Plus,
+  Settings,
+  Trash,
+} from 'lucide-react';
 import { type CSSProperties, type HTMLAttributes, useState } from 'react';
 import type { Overview, SpaceView } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
@@ -13,6 +22,7 @@ import { type Id, repositories } from '@/lib/db';
 import { arrangeTabStrip, moveGroupToSpace } from '../commands';
 import { type DragData, dragData, ZONE_ID } from '../dnd';
 import { useUi } from '../store';
+import { useReview } from '../use-review';
 import { SpaceNameDialog } from './SpaceDialogs';
 
 const NAV_ITEM =
@@ -37,6 +47,8 @@ const text = localized({
     spaces: 'Пространства',
     dropHere: 'Отпустить на пространстве — группа перейдёт туда.',
     newSpace: 'Новое пространство',
+    review: 'Давно не открывали',
+    reviewCount: (n: number) => `ждут разбора: ${n}`,
     tidy: 'Порядок',
     trash: 'Корзина',
     outOfMemory: 'Не в памяти',
@@ -53,6 +65,8 @@ const text = localized({
     spaces: 'Spaces',
     dropHere: 'Drop on a space — the group moves there.',
     newSpace: 'New space',
+    review: 'Not opened lately',
+    reviewCount: (n: number) => `waiting for review: ${n}`,
     tidy: 'Tidy up',
     trash: 'Trash',
     outOfMemory: 'Out of memory',
@@ -71,6 +85,7 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
   const setCreating = useUi((state) => state.setNewSpaceOpen);
   const { groupsByState, tabsOutOfMemory, tabCount } = overview;
   const share = tabCount === 0 ? 0 : Math.round((tabsOutOfMemory / tabCount) * 100);
+  const forgotten = useReview(overview).length;
 
   const inbox = overview.spaces.find(({ space }) => space.isDefault);
   const others = overview.spaces.filter(({ space }) => !space.isDefault);
@@ -176,6 +191,20 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
       </div>
 
       <div className="flex flex-col gap-0.5">
+        <a
+          href={routeHash({ view: 'review' })}
+          aria-current={route.view === 'review' ? 'page' : undefined}
+          className={route.view === 'review' ? NAV_ITEM_CURRENT : NAV_ITEM}
+        >
+          <History aria-hidden className={route.view === 'review' ? '' : 'text-fg-muted'} />
+          <span className="min-w-0 flex-1 truncate">{t.review}</span>
+          {forgotten > 0 && (
+            <span className="font-mono text-xs text-fg-muted">
+              <span className="sr-only">{t.reviewCount(forgotten)}</span>
+              <span aria-hidden>{forgotten}</span>
+            </span>
+          )}
+        </a>
         <a
           href={routeHash({ view: 'tidy' })}
           aria-current={route.view === 'tidy' ? 'page' : undefined}

@@ -179,6 +179,18 @@ describe('moveTab', () => {
     expect((await t.trash.list()).groups).toEqual([]);
   });
 
+  it('does not empty a group protected from deletion', async () => {
+    const from = await stowedGroup('Одна', ['a']);
+    const to = await stowedGroup('В', ['x']);
+    await t.groups.update(from.id, { locked: true });
+    const a = await link(from.id, 'a');
+
+    const response = await t.command({ type: 'moveTab', tabId: a.id, groupId: to.id, index: 1 });
+
+    expect(response).toMatchObject({ ok: false, code: 'group-locked' });
+    expect(await titles(from.id)).toEqual(['a']);
+  });
+
   it('undo of a simple move puts the link back to its place', async () => {
     const from = await stowedGroup('Из', ['a', 'b', 'c']);
     const to = await stowedGroup('В', ['x']);

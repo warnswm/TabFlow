@@ -148,6 +148,12 @@ export class QueueRepository {
     });
   }
 
+  /** «Оставить» in «Давно не открывали». Not a change of the video: `updatedAt` stays. */
+  async markReviewed(id: Id): Promise<void> {
+    await this.requireLive(id);
+    await this.db.queue.update(id, { reviewedAt: this.clock() });
+  }
+
   async remove(id: Id): Promise<void> {
     await this.requireLive(id);
     await this.db.queue.update(id, { deletedAt: this.clock() });

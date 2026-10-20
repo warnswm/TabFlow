@@ -97,4 +97,69 @@ describe('GroupRepository', () => {
     expect(await t.groups.listBySpace(inbox.id)).toEqual([]);
     expect((await t.groups.listBySpace(work.id)).map((g) => g.id)).toEqual([group.id]);
   });
+
+  describe('«В избранном»', () => {
+    async function threeGroups() {
+      const t = setupTestDb();
+      const space = await t.spaces.ensureDefault();
+      const make = (title: string) => t.groups.create({ spaceId: space.id, title, color: 'blue' });
+      const a = await make('A');
+      const b = await make('B');
+      const c = await make('C');
+      const titles = async (spaceId = space.id) =>
+        (await t.groups.listBySpace(spaceId)).map((g) => g.title);
+      return { t, space, a, b, c, titles };
+    }
+
+    it('puts a favorite after the other favorites, an unstarred one first among the rest', async () => {
+      const { t, c, b, titles } = await threeGroups();
+
+      await t.groups.setFavorite(c.id, true);
+      expect(await titles()).toEqual(['C', 'A', 'B']);
+      await t.groups.setFavorite(b.id, true);
+      expect(await titles()).toEqual(['C', 'B', 'A']);
+      await t.groups.setFavorite(c.id, false);
+      expect(await titles()).toEqual(['B', 'C', 'A']);
+      expect((await t.groups.get(c.id))?.favorite).toBeUndefined();
+    });
+
+    it('keeps a dragged group inside its block', async () => {
+      const { t, a, c, titles, space } = await threeGroups();
+      await t.groups.setFavorite(c.id, true);
+
+      await t.groups.place(a.id, space.id, 0);
+      expect(await titles()).toEqual(['C', 'A', 'B']);
+      await t.groups.place(c.id, space.id, 2);
+      expect(await titles()).toEqual(['C', 'A', 'B']);
+    });
+
+    it('a favorite moved to another space stands after its favorites', async () => {
+      const { t, a, b, c } = await threeGroups();
+      const work = await t.spaces.create('Работа');
+      const w1 = await t.groups.create({ spaceId: work.id, title: 'W1', color: 'red' });
+      await t.groups.setFavorite(w1.id, true);
+      await t.groups.create({ spaceId: work.id, title: 'W2', color: 'red' });
+      await t.groups.setFavorite(c.id, true);
+
+      await t.groups.move(c.id, work.id);
+      await t.groups.move(a.id, work.id);
+
+      expect((await t.groups.listBySpace(work.id)).map((g) => g.title)).toEqual([
+        'W1',
+        'C',
+        'W2',
+        'A',
+      ]);
+      expect((await t.groups.get(b.id))?.spaceId).not.toBe(work.id);
+    });
+
+    it('a favorite out of place (import) is shown first and put right by the next move', async () => {
+      const { t, a, c, titles, space } = await threeGroups();
+      await t.db.groups.update(c.id, { favorite: true });
+      expect(await titles()).toEqual(['C', 'A', 'B']);
+
+      await t.groups.place(a.id, space.id, 2);
+      expect(await titles()).toEqual(['C', 'B', 'A']);
+    });
+  });
 });

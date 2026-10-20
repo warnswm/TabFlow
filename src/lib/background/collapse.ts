@@ -1,6 +1,7 @@
 /**
  * «Свернуть всё» for the current window:
- * - every native group is stowed on its own, keeping its title and color;
+ * - every native group is stowed on its own, keeping its title and color — except the ones
+ *   protected from deletion, which stay on the strip;
  * - tabs outside groups (the current one included) go into one new stowed group in «Входящие»;
  * - pinned tabs and browser pages stay open; duplicate URLs are saved once per group;
  * - the main TabFlow page opens, then the saved tabs are closed.
@@ -27,10 +28,15 @@ export async function collapseAll(ctx: BackgroundContext): Promise<CommandResult
   const ungroupIds: number[] = [];
   const closedGroupIds: Id[] = [];
   let saved = 0;
+  let kept = 0;
 
   // 1. Native groups: each stowed on its own (database first).
   for (const chromeGroupId of new Set(tabs.map((tab) => tab.groupId))) {
     if (chromeGroupId === NO_GROUP) continue;
+    if ((await repos.groups.findByChromeGroupId(chromeGroupId))?.locked) {
+      kept++;
+      continue;
+    }
     const plan = await stowInDb(ctx, chromeGroupId);
     closeIds.push(...plan.closeIds);
     ungroupIds.push(...plan.ungroupIds);
@@ -63,10 +69,15 @@ export async function collapseAll(ctx: BackgroundContext): Promise<CommandResult
     saved += unique.length;
   }
 
-  if (closeIds.length === 0 && ungroupIds.length === 0) return result({});
+  if (closeIds.length === 0 && ungroupIds.length === 0) return result(kept > 0 ? { kept } : {});
 
   // 3. Everything is written: show the main page, then close the tabs.
   await openAppPageIn(ctx, windowId);
   await closeTabs(ctx, closeIds, ungroupIds);
-  return result({ groups: closedGroupIds.length, tabs: saved, closedGroupIds });
+  return result({
+    groups: closedGroupIds.length,
+    tabs: saved,
+    closedGroupIds,
+    ...(kept > 0 && { kept }),
+  });
 }

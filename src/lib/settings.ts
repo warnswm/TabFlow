@@ -1,6 +1,7 @@
 /**
  * User settings in `storage.local`: the restore mode, what the badge counts, the interface
- * language, autosleep and how tabs are sorted into groups, chosen on the settings page
+ * language, autosleep, how tabs are sorted into groups and when «Давно не открывали» shows
+ * something, chosen on the settings page
  * (`#/settings` of the main page).
  */
 import { browserLanguage, onSettingsChanged, readSetting, writeSetting } from './browser-api';
@@ -11,6 +12,7 @@ import {
   resolveLanguage,
   setLanguage,
 } from './i18n';
+import { DEFAULT_REVIEW_DAYS, REVIEW_DAYS, type ReviewDays } from './app/review';
 import { RESTORE_MODES, type RestoreMode } from './messages';
 import { BADGE_MODES, type BadgeMode } from './summary';
 import {
@@ -145,6 +147,28 @@ export async function loadAiGrouping(): Promise<boolean> {
 
 export async function saveAiGrouping(on: boolean): Promise<void> {
   await writeSetting(AI_GROUPING_KEY, on);
+}
+
+const REVIEW_DAYS_KEY = 'tabflow.reviewDays';
+
+export function parseReviewDays(value: unknown): ReviewDays {
+  return REVIEW_DAYS.includes(value as ReviewDays) ? (value as ReviewDays) : DEFAULT_REVIEW_DAYS;
+}
+
+/** «Давно не открывали»: after how many days a stowed group or a queued video shows up there. */
+export async function loadReviewDays(): Promise<ReviewDays> {
+  return parseReviewDays(await readSetting(REVIEW_DAYS_KEY));
+}
+
+export async function saveReviewDays(days: ReviewDays): Promise<void> {
+  await writeSetting(REVIEW_DAYS_KEY, days);
+}
+
+/** Calls back when «Давно не открывали» gets another number of days (on any page). */
+export function onReviewDaysChanged(callback: () => void): void {
+  onSettingsChanged((keys) => {
+    if (keys.includes(REVIEW_DAYS_KEY)) callback();
+  });
 }
 
 /** The settings the background reads; tests pass their own. */

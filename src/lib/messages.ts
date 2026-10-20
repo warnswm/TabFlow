@@ -170,6 +170,8 @@ export interface CommandResult {
   failed: number;
   /** Groups whose tabs this command closed: undo puts them back on the tab strip. */
   closedGroupIds: Id[];
+  /** `collapseAll`: groups protected from deletion that stayed on the tab strip. */
+  kept?: number;
   /** `moveTab`: where the link was, for undo. */
   movedFrom?: MovedFrom;
   /** Title of the group the command stowed, put to sleep or saved into. */
@@ -234,9 +236,11 @@ export type CommandErrorCode =
   | 'group-not-found'
   | 'group-not-on-tab-strip'
   | 'group-empty'
+  | 'group-locked'
   | 'restore-failed'
   | 'space-not-found'
   | 'space-protected'
+  | 'space-has-locked'
   | 'tab-not-found'
   | 'tab-not-in-group'
   | 'tab-not-saveable'

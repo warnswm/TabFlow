@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import type { StateFilter } from '@/lib/app/filters';
+import { DEFAULT_REVIEW_DAYS, type ReviewDays } from '@/lib/app/review';
 import type { Id } from '@/lib/db';
 import type { RestoreMode } from '@/lib/messages';
 import {
@@ -11,6 +12,7 @@ import {
   DEFAULT_RESTORE_MODE,
   saveBadgeMode,
   saveRestoreMode,
+  saveReviewDays,
 } from '@/lib/settings';
 import type { BadgeMode } from '@/lib/summary';
 
@@ -26,6 +28,8 @@ interface UiState {
   restoreMode: RestoreMode;
   /** What the number on the TabFlow icon counts. */
   badgeMode: BadgeMode;
+  /** «Давно не открывали»: after how many days (0 — off). */
+  reviewDays: ReviewDays;
   /** Search field of the space: filters its tiles. */
   search: string;
   stateFilter: StateFilter;
@@ -41,6 +45,7 @@ interface UiState {
   dismissToast(id: number): void;
   setRestoreMode(mode: RestoreMode, persist?: boolean): void;
   setBadgeMode(mode: BadgeMode, persist?: boolean): void;
+  setReviewDays(days: ReviewDays, persist?: boolean): void;
   setSearch(search: string): void;
   setStateFilter(filter: StateFilter): void;
   /** Search and filter back to «everything» — on another space, or to show a chosen tile. */
@@ -58,6 +63,7 @@ let nextToastId = 1;
 export const useUi = create<UiState>()((set) => ({
   restoreMode: DEFAULT_RESTORE_MODE,
   badgeMode: DEFAULT_BADGE_MODE,
+  reviewDays: DEFAULT_REVIEW_DAYS,
   search: '',
   stateFilter: 'all',
   paletteOpen: false,
@@ -72,6 +78,10 @@ export const useUi = create<UiState>()((set) => ({
   setBadgeMode: (mode, persist = true) => {
     set({ badgeMode: mode });
     if (persist) void saveBadgeMode(mode);
+  },
+  setReviewDays: (days, persist = true) => {
+    set({ reviewDays: days });
+    if (persist) void saveReviewDays(days);
   },
   setSearch: (search) => set({ search }),
   setStateFilter: (stateFilter) => set({ stateFilter }),

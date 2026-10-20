@@ -10,10 +10,27 @@ import type { BackgroundContext } from './context';
 import { closeTabs, requireGroup, restoreGroup, result, stowInDb } from './group-actions';
 import { discardPlaceholder } from './placeholder-icons';
 
-/** Moves the group to the trash; if it is on the tab strip, its tabs are closed afterwards. */
-export async function deleteGroup(ctx: BackgroundContext, groupId: Id): Promise<CommandResult> {
+/**
+ * Whatever TabFlow deletes by itself: «Заменить» of an import, undoable for 30 days, deletes
+ * protected groups too.
+ */
+export interface DeleteOptions {
+  ignoreLock?: boolean;
+}
+
+/**
+ * Moves the group to the trash; if it is on the tab strip, its tabs are closed afterwards.
+ * A group protected from deletion stays (`group-locked`).
+ */
+export async function deleteGroup(
+  ctx: BackgroundContext,
+  groupId: Id,
+  { ignoreLock = false }: DeleteOptions = {},
+): Promise<CommandResult> {
   const { repos } = ctx;
   const group = await requireGroup(ctx, groupId);
+  if (group.locked && !ignoreLock)
+    throw new CommandError('group-locked', `Group ${groupId} is locked`);
 
   if (group.chromeGroupId === undefined) {
     const tabs = (await repos.tabs.listByGroup(group.id)).length;
@@ -31,19 +48,30 @@ export async function deleteGroup(ctx: BackgroundContext, groupId: Id): Promise<
   });
 }
 
-/** Moves the space with all its groups to the trash; its groups on the tab strip are closed. */
-export async function deleteSpace(ctx: BackgroundContext, spaceId: Id): Promise<CommandResult> {
+/**
+ * Moves the space with all its groups to the trash; its groups on the tab strip are closed.
+ * A space with a group protected from deletion stays (`space-has-locked`).
+ */
+export async function deleteSpace(
+  ctx: BackgroundContext,
+  spaceId: Id,
+  { ignoreLock = false }: DeleteOptions = {},
+): Promise<CommandResult> {
   const { repos } = ctx;
   const space = await repos.spaces.get(spaceId);
   if (!space) throw new CommandError('space-not-found', `Space ${spaceId} not found`);
   if (space.isDefault) throw new CommandError('space-protected', 'The default space stays');
+  const spaceGroups = await repos.groups.listBySpace(space.id);
+  if (!ignoreLock && spaceGroups.some((group) => group.locked)) {
+    throw new CommandError('space-has-locked', `Space ${spaceId} has locked groups`);
+  }
 
   const closeIds: number[] = [];
   const ungroupIds: number[] = [];
   const closedGroupIds: Id[] = [];
   let groups = 0;
   let tabs = 0;
-  for (const group of await repos.groups.listBySpace(space.id)) {
+  for (const group of spaceGroups) {
     if (group.chromeGroupId === undefined) {
       groups++;
       tabs += (await repos.tabs.listByGroup(group.id)).length;
@@ -64,11 +92,16 @@ export async function deleteSpace(ctx: BackgroundContext, spaceId: Id): Promise<
   return result({ groups, tabs, closedGroupIds });
 }
 
-/** Moves a link to the trash and closes its tab. The last link of a group takes the group along. */
+/**
+ * Moves a link to the trash and closes its tab. The last link of a group takes the group along.
+ * Links of a group protected from deletion stay (`group-locked`).
+ */
 export async function deleteTab(ctx: BackgroundContext, tabId: Id): Promise<CommandResult> {
   const { api, repos } = ctx;
   const tab = await repos.tabs.get(tabId);
   if (!tab) throw new CommandError('tab-not-found', `Tab ${tabId} not found`);
+  const group = await requireGroup(ctx, tab.groupId);
+  if (group.locked) throw new CommandError('group-locked', `Group ${group.id} is locked`);
 
   if ((await repos.tabs.listByGroup(tab.groupId)).length <= 1) {
     return deleteGroup(ctx, tab.groupId);

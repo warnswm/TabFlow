@@ -11,6 +11,7 @@
  */
 import { type BrowserTab, NO_GROUP } from '../browser-api';
 import type { Id, TabGroup } from '../db';
+import { byFavoriteThenOrder } from '../db/order';
 import type { BackgroundContext } from './context';
 
 /** Where each native group of a window starts and how many tabs it has, in strip order. */
@@ -43,7 +44,7 @@ export async function arrangeGroups(ctx: BackgroundContext, windowId: number): P
     const rank = (spaceId: string) => spaceRank.get(spaceId) ?? Number.MAX_SAFE_INTEGER;
     const desired = (await repos.groups.listAll())
       .filter((group) => group.chromeGroupId !== undefined && firstIndex.has(group.chromeGroupId))
-      .sort((a, b) => rank(a.spaceId) - rank(b.spaceId) || a.order - b.order)
+      .sort((a, b) => rank(a.spaceId) - rank(b.spaceId) || byFavoriteThenOrder(a, b))
       .map((group) => group.chromeGroupId as number);
     const known = new Set(desired);
     const current = [...firstIndex.keys()].filter((id) => known.has(id));
@@ -77,7 +78,9 @@ export async function arrangeAllWindows(ctx: BackgroundContext): Promise<number>
  * Tiles follow the strip of the window: within each space its groups on this strip take their
  * strip order in the places they hold among the tiles; stowed groups and groups of other windows
  * keep their places. Nothing is written when the order already matches — after `arrangeGroups`
- * it always does, so TabFlow's own moves do not move tiles back. Returns how many tiles moved.
+ * it always does, so TabFlow's own moves do not move tiles back. Favorites stay first: a group
+ * dragged across their border moves only within its block, and the strip is arranged again.
+ * Returns how many tiles moved.
  */
 export async function followStrip(ctx: BackgroundContext, windowId: number): Promise<number> {
   const { api, repos } = ctx;
@@ -89,13 +92,24 @@ export async function followStrip(ctx: BackgroundContext, windowId: number): Pro
 
   const spaceIds = new Set((await repos.groups.listAll()).filter(onStrip).map((g) => g.spaceId));
   let moved = 0;
+  let misplaced = false;
   for (const spaceId of spaceIds) {
     const tiles = await repos.groups.listBySpace(spaceId);
-    const wanted = tiles
-      .filter(onStrip)
-      .sort((a, b) => (stripIndex(a) ?? 0) - (stripIndex(b) ?? 0))
-      .map((group) => group.id);
-    const desired = tiles.map((tile) => (onStrip(tile) ? (wanted.shift() ?? tile.id) : tile.id));
+    // Favorites stay first: a block takes the strip order only among its own places.
+    const wanted = (favorite: boolean) =>
+      tiles
+        .filter((tile) => onStrip(tile) && (tile.favorite === true) === favorite)
+        .sort((a, b) => (stripIndex(a) ?? 0) - (stripIndex(b) ?? 0))
+        .map((group) => group.id);
+    const favorites = wanted(true);
+    const others = wanted(false);
+    // A group dragged in front of a favorite (or a favorite behind the others) goes back.
+    const strip = tiles.filter(onStrip).sort((a, b) => (stripIndex(a) ?? 0) - (stripIndex(b) ?? 0));
+    if (strip.map((g) => g.id).join() !== [...favorites, ...others].join()) misplaced = true;
+    const desired = tiles.map((tile) => {
+      if (!onStrip(tile)) return tile.id;
+      return (tile.favorite === true ? favorites : others).shift() ?? tile.id;
+    });
     const fixed = new Set(tiles.filter((tile) => !onStrip(tile)).map((tile) => tile.id));
     const moves = placeMoves(
       tiles.map((tile) => tile.id),
@@ -105,6 +119,7 @@ export async function followStrip(ctx: BackgroundContext, windowId: number): Pro
     for (const [id, index] of moves) await repos.groups.place(id, spaceId, index);
     moved += moves.length;
   }
+  if (misplaced) await arrangeGroups(ctx, windowId);
   return moved;
 }
 

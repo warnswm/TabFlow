@@ -38,6 +38,7 @@ import { formatShortcut } from '@/lib/hotkeys';
 import { runCommand } from '../commands';
 import { useNow, useOnFocus } from '../hooks';
 import { ChoiceList, Section } from './SettingsParts';
+import { ReviewSection } from './ReviewView';
 import { AutoSleepSection, GroupingSection } from './TidySettings';
 import { useUi } from '../store';
 import {
@@ -230,6 +231,7 @@ export function SettingsView({ overview }: { overview: Overview }) {
       <BadgeModeSection />
       <AutoSleepSection />
       <GroupingSection />
+      <ReviewSection />
       <HotkeysSection />
       <SiteAccessSection />
       <DataSection overview={overview} />

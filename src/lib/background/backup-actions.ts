@@ -47,7 +47,10 @@ export async function importBackup(
   });
 }
 
-/** Spaces with their groups, the groups of «Входящие» and the whole queue go to the trash. */
+/**
+ * Spaces with their groups, the groups of «Входящие» and the whole queue go to the trash — groups
+ * protected from deletion too: «Заменить» replaces everything, undo brings it all back.
+ */
 async function moveAllToTrash(ctx: BackgroundContext) {
   const { repos } = ctx;
   const trashed = { spaces: [] as Id[], groups: [] as Id[], queue: [] as Id[] };
@@ -56,11 +59,15 @@ async function moveAllToTrash(ctx: BackgroundContext) {
   for (const space of await repos.spaces.list()) {
     if (space.isDefault) {
       for (const group of await repos.groups.listBySpace(space.id)) {
-        closedGroupIds.push(...(await deleteGroup(ctx, group.id)).closedGroupIds);
+        closedGroupIds.push(
+          ...(await deleteGroup(ctx, group.id, { ignoreLock: true })).closedGroupIds,
+        );
         trashed.groups.push(group.id);
       }
     } else {
-      closedGroupIds.push(...(await deleteSpace(ctx, space.id)).closedGroupIds);
+      closedGroupIds.push(
+        ...(await deleteSpace(ctx, space.id, { ignoreLock: true })).closedGroupIds,
+      );
       trashed.spaces.push(space.id);
     }
   }
