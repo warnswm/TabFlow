@@ -12,3 +12,9 @@ web-ext.config.ts
 Thumbs.db
 test-results/
 playwright-report/
+
+# IDE
+.idea/
+
+# Brandbook and interviews: kept locally, not published
+brand-identity/

@@ -1,6 +1,6 @@
 # TabFlow — дизайн-система (тёмная тема)
 
-Версия 1 · 2026-10-16 · Основа: `../brand-identity/90_SYNTHESIS.md`
+Версия 1 · 2026-10-16 · Основа: брендбук TabFlow (не входит в репозиторий); голос и тексты — `VOICE.md`
 Файлы: `design-tokens.json` (источник правды) · `tokens.css` (Tailwind v4 `@theme`) · макеты — холст TabFlow UI.
 
 ## Принципы
