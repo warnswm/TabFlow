@@ -3,7 +3,6 @@
  * Chrome and the reading of its answer. The model only names topics and sorts tab numbers; a tab
  * it leaves out goes to the dictionary (`topicPlacer`), an answer that makes no sense is dropped.
  */
-import type { GroupColor } from '../db/models';
 import type { Language } from '../i18n';
 import {
   colorOf,
@@ -37,8 +36,12 @@ export const AI_ANSWER_SCHEMA = {
   required: ['groups'],
 } as const;
 
-/** The request: numbered tabs (title and site), the language of the group names. */
-export function aiPrompt(tabs: readonly GroupingTab[], language: Language): string {
+/**
+ * The request: numbered tabs (title and site). Group names are asked in English — the only
+ * language of ours the model takes (`MODEL_OPTIONS` in `browser-api.ts`); `readAiAnswer` puts
+ * names of dictionary topics into the interface language.
+ */
+export function aiPrompt(tabs: readonly GroupingTab[]): string {
   const lines = tabs.slice(0, AI_MAX_TABS).map((tab, i) => {
     let host = '';
     try {
@@ -48,10 +51,9 @@ export function aiPrompt(tabs: readonly GroupingTab[], language: Language): stri
     }
     return `${i + 1}. ${tab.title.slice(0, 80)}${host ? ` — ${host}` : ''}`;
   });
-  const names = language === 'ru' ? 'in Russian' : 'in English';
   return [
     'Sort these browser tabs into 2 to 8 groups by topic.',
-    `Name every group with one or two words ${names}, like a folder name.`,
+    'Name every group with one or two words in English, like a folder name.',
     'Use each tab number at most once; leave out tabs that fit no group.',
     'Tabs:',
     ...lines,
@@ -60,9 +62,14 @@ export function aiPrompt(tabs: readonly GroupingTab[], language: Language): stri
 
 /**
  * Reads the answer into a placement per tab id. Unknown or repeated numbers, empty names and
- * groups of one tab are dropped; a name of a dictionary topic gets the topic's color.
+ * groups of one tab are dropped; a name of a dictionary topic gets the topic's name in `language`
+ * and its color, other names stay as the model wrote them.
  */
-export function readAiAnswer(answer: string, tabs: readonly GroupingTab[]): Map<number, Placement> {
+export function readAiAnswer(
+  answer: string,
+  tabs: readonly GroupingTab[],
+  language: Language,
+): Map<number, Placement> {
   const placements = new Map<number, Placement>();
   let parsed: unknown;
   try {
@@ -76,25 +83,30 @@ export function readAiAnswer(answer: string, tabs: readonly GroupingTab[]): Map<
   for (const group of groups) {
     const { name, tabs: numbers } = (group ?? {}) as { name?: unknown; tabs?: unknown };
     if (typeof name !== 'string' || !Array.isArray(numbers)) continue;
-    const title = name.trim().replace(/\s+/g, ' ').slice(0, 40);
-    if (!title) continue;
+    const written = name.trim().replace(/\s+/g, ' ').slice(0, 40);
+    if (!written) continue;
     const ids = numbers
       .filter((n): n is number => Number.isInteger(n))
       .map((n) => sent[n - 1]?.id)
       .filter((id): id is number => id !== undefined && !placements.has(id));
     const unique = [...new Set(ids)];
     if (unique.length < 2) continue;
-    const placement = { title, color: aiColor(title) };
+    const placement = aiPlacement(written, language);
     for (const id of unique) placements.set(id, placement);
   }
   return placements;
 }
 
-/** A model name that is a dictionary topic («Видео», “Video”) takes its color. */
-function aiColor(title: string): GroupColor {
-  const key = titleKey(title);
-  const topic =
-    TOPICS.find((item) => Object.values(item.name).some((name) => titleKey(name) === key)) ??
-    dictionaryTopic('about:blank', titleWords(title));
-  return topic ? topic.color : colorOf(title);
+/**
+ * A model name that is a dictionary topic (“Video”, «Видео») becomes the topic in `language`;
+ * one that only has a word of a topic keeps its name and takes the topic's color.
+ */
+function aiPlacement(written: string, language: Language): Placement {
+  const key = titleKey(written);
+  const named = TOPICS.find((item) =>
+    Object.values(item.name).some((name) => titleKey(name) === key),
+  );
+  if (named) return { title: named.name[language], color: named.color };
+  const topic = dictionaryTopic('about:blank', titleWords(written));
+  return { title: written, color: topic ? topic.color : colorOf(written) };
 }

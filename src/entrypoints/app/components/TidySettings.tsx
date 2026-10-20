@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { type BuiltInAiState, prepareBuiltInAi } from '@/lib/browser-api';
-import { getLanguage, localized } from '@/lib/i18n';
+import { localized } from '@/lib/i18n';
 import { words } from '@/lib/i18n/words';
 import {
   loadAiGrouping,
@@ -52,7 +52,7 @@ const text = localized({
         'Недоступно в этом браузере: нужна встроенная нейросеть Chrome (Gemini Nano) и мощный компьютер. Темы берутся из словаря.',
     } as Record<BuiltInAiState, string>,
     aiNote:
-      'Русский язык Gemini Nano пока официально не поддерживает — названия групп могут быть неточными.',
+      'Gemini Nano пока не поддерживает русский: модель называет группы по-английски, знакомые темы переводятся по словарю.',
     downloaded: (share: number) => `Скачано ${Math.round(share * 100)} %.`,
     downloadFailed: 'Модель не скачалась. Темы берутся из словаря.',
     downloadWhere:
@@ -174,7 +174,7 @@ export function GroupingSection() {
     if (!on || state !== 'downloadable') return;
     // Right in the click: Chrome downloads the model only after a user action.
     setState('downloading');
-    prepareBuiltInAi(getLanguage(), (share) => setProgress(t.downloaded(share)))
+    prepareBuiltInAi((share) => setProgress(t.downloaded(share)))
       .then(() => {
         setProgress(undefined);
         setState('available');

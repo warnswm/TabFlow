@@ -278,8 +278,8 @@ describe('grouping', () => {
   });
 
   it('reads the answer of Gemini Nano; nonsense is dropped', () => {
-    const prompt = aiPrompt(tabs, 'ru');
-    expect(prompt).toContain('in Russian');
+    const prompt = aiPrompt(tabs);
+    expect(prompt).toContain('in English');
     expect(prompt).toContain('1. a/b — github.com');
     const placements = readAiAnswer(
       JSON.stringify({
@@ -292,6 +292,7 @@ describe('grouping', () => {
         ],
       }),
       tabs,
+      'ru',
     );
     expect([...placements].map(([id, place]) => [id, place.title, place.color])).toEqual([
       [3, 'Видео', 'red'],
@@ -299,8 +300,21 @@ describe('grouping', () => {
       [1, 'Код', colorOf('Код')],
       [2, 'Код', colorOf('Код')],
     ]);
-    expect(readAiAnswer('not json', tabs).size).toBe(0);
-    expect(readAiAnswer('{"groups": 5}', tabs).size).toBe(0);
+    expect(readAiAnswer('not json', tabs, 'ru').size).toBe(0);
+    expect(readAiAnswer('{"groups": 5}', tabs, 'ru').size).toBe(0);
+  });
+
+  it('puts English names of dictionary topics into the interface language', () => {
+    const answer = JSON.stringify({
+      groups: [
+        { name: 'video', tabs: [3, 4] },
+        { name: 'Reading list', tabs: [1, 2] },
+      ],
+    });
+    const titles = (language: 'ru' | 'en') =>
+      [...readAiAnswer(answer, tabs, language).values()].map((place) => place.title);
+    expect(titles('ru')).toEqual(['Видео', 'Видео', 'Reading list', 'Reading list']);
+    expect(titles('en')).toEqual(['Video', 'Video', 'Reading list', 'Reading list']);
   });
 
   it('sends at most a limited number of tabs to the model', () => {
@@ -310,7 +324,7 @@ describe('grouping', () => {
       title: `T${i}`,
     }));
     expect(
-      aiPrompt(many, 'en')
+      aiPrompt(many)
         .split('\n')
         .filter((line) => /^\d+\./.test(line)),
     ).toHaveLength(AI_MAX_TABS);

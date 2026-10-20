@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { parseRoute, type Route, routeHash } from '@/lib/app/route';
 import { builtInAiState, type BuiltInAiState } from '@/lib/browser-api';
-import { getLanguage } from '@/lib/i18n';
 
 function subscribeToHash(onChange: () => void): () => void {
   window.addEventListener('hashchange', onChange);
@@ -48,28 +47,28 @@ export function useOnFocus<T>(load: () => Promise<T>): [T | undefined, () => voi
 const AI_CHECK_MS = 5000;
 
 /**
- * Whether Gemini Nano can be used here. Checked again every few seconds until it is ready or
- * known to be unavailable: Chrome downloads the model in the background, the page is not told.
+ * Whether Gemini Nano can be used here. Checked again every few seconds while Chrome downloads
+ * the model (in the background, the page is not told); otherwise once.
  * The setter lets a click show `downloading` at once.
  */
 export function useBuiltInAi(): [BuiltInAiState | undefined, (state: BuiltInAiState) => void] {
   const [state, setState] = useState<BuiltInAiState>();
-  const settled = state === 'available' || state === 'unavailable';
+  const downloading = state === 'downloading';
   useEffect(() => {
     let live = true;
     const check = () => {
-      builtInAiState(getLanguage())
+      builtInAiState()
         .then((next) => {
           if (live) setState(next);
         })
         .catch(() => undefined);
     };
     check();
-    const timer = settled ? undefined : window.setInterval(check, AI_CHECK_MS);
+    const timer = downloading ? window.setInterval(check, AI_CHECK_MS) : undefined;
     return () => {
       live = false;
       window.clearInterval(timer);
     };
-  }, [settled]);
+  }, [downloading]);
   return [state, setState];
 }

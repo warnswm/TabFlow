@@ -475,44 +475,33 @@ function languageModel(): LanguageModelApi | undefined {
   return (globalThis as { LanguageModel?: LanguageModelApi }).LanguageModel;
 }
 
-function modelOptions(language: string): LanguageModelOptions {
-  return {
-    expectedInputs: [{ type: 'text', languages: [language] }],
-    expectedOutputs: [{ type: 'text', languages: [language] }],
-  };
-}
-
-/** The language to talk to the model in: the interface one when the model knows it, else English. */
-async function modelLanguage(
-  api: LanguageModelApi,
-  language: string,
-): Promise<{ language: string; state: BuiltInAiState }> {
-  let state: BuiltInAiState = 'unavailable';
-  for (const candidate of [...new Set([language, 'en'])]) {
-    state = await api.availability(modelOptions(candidate)).catch(() => 'unavailable' as const);
-    if (state !== 'unavailable') return { language: candidate, state };
-  }
-  return { language: 'en', state };
-}
+/**
+ * The model is always spoken to in English: the Prompt API takes only en, ja, es, de, fr, and
+ * asking even `availability()` about another language (`ru`) logs an error of the extension.
+ * Russian tab titles still go in as they are; group names come back in English (`readAiAnswer`
+ * puts dictionary topics into the interface language).
+ */
+const MODEL_OPTIONS: LanguageModelOptions = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }],
+};
 
 /** Whether Gemini Nano can be used here (`downloadable` — Chrome downloads it on first use). */
-export async function builtInAiState(language: string): Promise<BuiltInAiState> {
+export async function builtInAiState(): Promise<BuiltInAiState> {
   const api = languageModel();
-  return api ? (await modelLanguage(api, language)).state : 'unavailable';
+  if (!api) return 'unavailable';
+  return api.availability(MODEL_OPTIONS).catch(() => 'unavailable' as const);
 }
 
 /**
  * Starts the download of Gemini Nano (Chrome allows it only right in a click) and waits for it;
  * `onDownload` gets the share downloaded, 0…1.
  */
-export async function prepareBuiltInAi(
-  language: string,
-  onDownload?: (share: number) => void,
-): Promise<void> {
+export async function prepareBuiltInAi(onDownload?: (share: number) => void): Promise<void> {
   const api = languageModel();
   if (!api) throw new Error('No built-in AI in this browser');
   const session = await api.create({
-    ...modelOptions((await modelLanguage(api, language)).language),
+    ...MODEL_OPTIONS,
     monitor(monitor) {
       monitor.addEventListener('downloadprogress', (event) => {
         onDownload?.((event as Event & { loaded: number }).loaded);
@@ -527,16 +516,14 @@ export async function prepareBuiltInAi(
  * (Chrome allows that only right in a click); `onDownload` gets the share downloaded, 0…1.
  */
 export async function promptBuiltInAi(
-  language: string,
   input: string,
   schema: object,
   onDownload?: (share: number) => void,
 ): Promise<string> {
   const api = languageModel();
   if (!api) throw new Error('No built-in AI in this browser');
-  const options = modelOptions((await modelLanguage(api, language)).language);
   const session = await api.create({
-    ...options,
+    ...MODEL_OPTIONS,
     monitor(monitor) {
       monitor.addEventListener('downloadprogress', (event) => {
         onDownload?.((event as Event & { loaded: number }).loaded);

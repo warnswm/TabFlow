@@ -424,8 +424,8 @@ function GroupingSection({
     const { showToast } = useUi.getState();
     setThinking(true);
     try {
-      const answer = await promptBuiltInAi(language, aiPrompt(loose, language), AI_ANSWER_SCHEMA);
-      const placements = readAiAnswer(answer, loose);
+      const answer = await promptBuiltInAi(aiPrompt(loose), AI_ANSWER_SCHEMA);
+      const placements = readAiAnswer(answer, loose, language);
       if (placements.size === 0) showToast(t.aiEmpty);
       else setAiPlacements(placements);
     } catch {
