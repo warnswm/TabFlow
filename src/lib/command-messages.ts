@@ -114,6 +114,20 @@ const text = localized({
     videoBack: (video: string, place: string) => `${video} снова в очереди${place}.`,
     videoWatched: (video: string) => `${video} просмотрено — оно в разделе «Просмотрено».`,
     videoRemoved: (video: string) => `${video} удалено из очереди.`,
+    noDuplicates: 'Дубликатов нет — закрывать нечего.',
+    duplicatesClosed: (tabs: number, links: number) =>
+      [
+        tabs > 0 && `Закрыто дубликатов: ${words().tabs(tabs)}.`,
+        links > 0 && `Повторы ссылок — в корзине на 30 дней: ${words().links(links)}.`,
+        'Оригиналы остались на месте.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    duplicatesBack: 'Дубликаты возвращены.',
+    nothingToGroup: 'Раскладывать нечего — вкладки уже в группах.',
+    grouped: (groups: number, tabs: number) =>
+      `Разложено: ${words().tabs(tabs)} · ${words().groups(groups)}. Группы — на панели и во «Входящих».`,
+    ungrouped: 'Вкладки вернулись на свои места.',
   },
   en: {
     errors: errorsEn,
@@ -175,6 +189,20 @@ const text = localized({
     videoBack: (video: string, place: string) => `${video} is back in the queue${place}.`,
     videoWatched: (video: string) => `${video} watched — it is in “Watched”.`,
     videoRemoved: (video: string) => `${video} removed from the queue.`,
+    noDuplicates: 'No duplicates — nothing to close.',
+    duplicatesClosed: (tabs: number, links: number) =>
+      [
+        tabs > 0 && `Duplicates closed: ${words().tabs(tabs)}.`,
+        links > 0 && `Repeated links are in Trash for 30 days: ${words().links(links)}.`,
+        'The originals stay in place.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    duplicatesBack: 'Duplicates are back.',
+    nothingToGroup: 'Nothing to sort — the tabs are already in groups.',
+    grouped: (groups: number, tabs: number) =>
+      `Sorted: ${words().tabs(tabs)} · ${words().groups(groups)}. The groups are on the tab strip and in Inbox.`,
+    ungrouped: 'The tabs are back in their places.',
   },
 });
 
@@ -229,6 +257,16 @@ export function describeResponse(type: CommandType, response: CommandResponse, n
       return tabs === 0 ? t.linkAlreadyThere(title) : t.linkSaved(title) + failedNote;
     case 'openApp':
       return t.appOpened;
+    case 'closeDuplicates': {
+      const links = response.result.duplicates?.links ?? 0;
+      return tabs + links === 0 ? t.noDuplicates : t.duplicatesClosed(tabs, links) + failedNote;
+    }
+    case 'undoCloseDuplicates':
+      return t.duplicatesBack + failedNote;
+    case 'groupTabs':
+      return groups === 0 ? t.nothingToGroup : t.grouped(groups, tabs);
+    case 'undoGroupTabs':
+      return t.ungrouped;
     case 'sleepLinks':
       return tabs === 0 ? t.sideBySide : t.sideBySideSlept(tabs);
     case 'arrangeGroups':

@@ -308,7 +308,10 @@ function TilePicker({ overview, index, startGroupId, adding, onDone }: TilePicke
 
   // From the menu of a tile: the list starts at that group.
   const startRef = useRef<HTMLDivElement>(null);
-  useEffect(() => startRef.current?.scrollIntoView({ block: 'start' }), []);
+  // Braces: Chrome's `scrollIntoView` now returns a Promise, which React would take for a cleanup.
+  useEffect(() => {
+    void startRef.current?.scrollIntoView({ block: 'start' });
+  }, []);
 
   function row(key: string, url: string, title: string) {
     const at = picked.indexOf(key);

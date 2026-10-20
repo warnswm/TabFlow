@@ -1,6 +1,7 @@
 /**
- * User settings in `storage.local`: the restore mode, what the badge counts and the interface
- * language, chosen on the settings page (`#/settings` of the main page).
+ * User settings in `storage.local`: the restore mode, what the badge counts, the interface
+ * language, autosleep and how tabs are sorted into groups, chosen on the settings page
+ * (`#/settings` of the main page).
  */
 import { browserLanguage, onSettingsChanged, readSetting, writeSetting } from './browser-api';
 import {
@@ -12,6 +13,13 @@ import {
 } from './i18n';
 import { RESTORE_MODES, type RestoreMode } from './messages';
 import { BADGE_MODES, type BadgeMode } from './summary';
+import {
+  AUTO_SLEEP_MINUTES,
+  type AutoSleepMinutes,
+  type AutoSleepSettings,
+  DEFAULT_AUTO_SLEEP_MINUTES,
+} from './tidy/auto-sleep';
+import { GROUPING_MODES, type GroupingMode } from './tidy/grouping';
 
 const RESTORE_MODE_KEY = 'tabflow.restoreMode';
 export const DEFAULT_RESTORE_MODE: RestoreMode = 'placeholder';
@@ -76,15 +84,80 @@ export async function startPageLanguage(): Promise<void> {
   onLanguageSettingChanged(() => void loadLanguage().then(setLanguage));
 }
 
+const AUTO_SLEEP_MINUTES_KEY = 'tabflow.autoSleepMinutes';
+const KEEP_AWAKE_SITES_KEY = 'tabflow.keepAwakeSites';
+
+export function parseAutoSleepMinutes(value: unknown): AutoSleepMinutes {
+  return AUTO_SLEEP_MINUTES.includes(value as AutoSleepMinutes)
+    ? (value as AutoSleepMinutes)
+    : DEFAULT_AUTO_SLEEP_MINUTES;
+}
+
+function parseStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+}
+
+export async function loadAutoSleep(): Promise<AutoSleepSettings> {
+  const [minutes, sites] = await Promise.all([
+    readSetting(AUTO_SLEEP_MINUTES_KEY),
+    readSetting(KEEP_AWAKE_SITES_KEY),
+  ]);
+  return { minutes: parseAutoSleepMinutes(minutes), sites: parseStrings(sites) };
+}
+
+export async function saveAutoSleepMinutes(minutes: AutoSleepMinutes): Promise<void> {
+  await writeSetting(AUTO_SLEEP_MINUTES_KEY, minutes);
+}
+
+/** `sites` — already parsed (`parseSiteList`). */
+export async function saveKeepAwakeSites(sites: readonly string[]): Promise<void> {
+  await writeSetting(KEEP_AWAKE_SITES_KEY, [...sites]);
+}
+
+const GROUPING_MODE_KEY = 'tabflow.groupingMode';
+const GROUPING_RULES_KEY = 'tabflow.groupingRules';
+const AI_GROUPING_KEY = 'tabflow.aiGrouping';
+
+/** How «Разложить вкладки» sorts tabs, remembered from the last time; topics by default. */
+export async function loadGroupingMode(): Promise<GroupingMode> {
+  const value = await readSetting(GROUPING_MODE_KEY);
+  return GROUPING_MODES.includes(value as GroupingMode) ? (value as GroupingMode) : 'topic';
+}
+
+export async function saveGroupingMode(mode: GroupingMode): Promise<void> {
+  await writeSetting(GROUPING_MODE_KEY, mode);
+}
+
+/** Own topics as typed on the settings page (`parseTopicRules`). */
+export async function loadGroupingRules(): Promise<string> {
+  const value = await readSetting(GROUPING_RULES_KEY);
+  return typeof value === 'string' ? value : '';
+}
+
+export async function saveGroupingRules(text: string): Promise<void> {
+  await writeSetting(GROUPING_RULES_KEY, text);
+}
+
+/** Topics by Gemini Nano (experimental): off by default. */
+export async function loadAiGrouping(): Promise<boolean> {
+  return (await readSetting(AI_GROUPING_KEY)) === true;
+}
+
+export async function saveAiGrouping(on: boolean): Promise<void> {
+  await writeSetting(AI_GROUPING_KEY, on);
+}
+
 /** The settings the background reads; tests pass their own. */
 export interface BackgroundSettings {
   badgeMode(): Promise<BadgeMode>;
   language(): Promise<Language>;
+  autoSleep(): Promise<AutoSleepSettings>;
 }
 
 export const storedSettings: BackgroundSettings = {
   badgeMode: loadBadgeMode,
   language: loadLanguage,
+  autoSleep: loadAutoSleep,
 };
 
 /** Calls back when the badge setting changes on a page (the background redraws the badge). */

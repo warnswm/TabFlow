@@ -1,9 +1,12 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { createBackground } from '@/lib/background';
+import { AUTO_SLEEP_ALARM } from '@/lib/background/auto-sleep';
 import {
   createBrowserTabsApi,
   createExtensionUi,
+  ensureAlarm,
   injectVideoScript,
+  onAlarm,
   onHotkey,
   onInstalled,
   onMenuClick,
@@ -57,6 +60,11 @@ export default defineBackground(() => {
   onSiteAccessChanged(syncSites);
   onBadgeModeChanged(() => void background.refreshUi());
   onLanguageSettingChanged(() => void background.followLanguage());
+  // Autosleep: checked once a minute; how long a group is unused comes from Chrome.
+  onAlarm(AUTO_SLEEP_ALARM, () => void background.autoSleep());
+  void ensureAlarm(AUTO_SLEEP_ALARM, 1).catch((error: unknown) =>
+    console.warn('[TabFlow] Autosleep alarm:', error),
+  );
 
   onMenuClick((click) => {
     // Chrome allows these only right in the click, before anything is awaited.

@@ -5,6 +5,7 @@ import type { Command, CommandResponse, VideoReport } from '../messages';
 import type { BackgroundSettings } from '../settings';
 import type { Language } from '../i18n';
 import type { BadgeMode } from '../summary';
+import type { AutoSleepSettings } from '../tidy/auto-sleep';
 import { FakeExtensionUi } from './fake-extension-ui';
 import { FakeTabsApi } from './fake-tabs-api';
 
@@ -12,8 +13,11 @@ export interface BackgroundTestContext extends TestContext {
   api: FakeTabsApi;
   /** What the badge and the context menu show. */
   ui: FakeExtensionUi;
-  /** Settings the background reads; change `mode`, then `bg.refreshUi()` (`lang` — `bg.followLanguage()`). */
-  settings: BackgroundSettings & { mode: BadgeMode; lang: Language };
+  /**
+   * Settings the background reads; change `mode`, then `bg.refreshUi()` (`lang` —
+   * `bg.followLanguage()`). `sleep` — autosleep, read on every run.
+   */
+  settings: BackgroundSettings & { mode: BadgeMode; lang: Language; sleep: AutoSleepSettings };
   ctx: BackgroundContext;
   bg: Background;
   /** Sends a command and waits until the events it caused are handled. */
@@ -34,12 +38,15 @@ export interface BackgroundTestContext extends TestContext {
 export function setupBackground({ supportsGroups = true } = {}): BackgroundTestContext {
   const test = setupTestDb();
   const api = new FakeTabsApi(supportsGroups);
+  api.clock = () => test.now.value;
   const ui = new FakeExtensionUi();
   const settings = {
     mode: 'today' as BadgeMode,
     lang: 'ru' as Language,
+    sleep: { minutes: 30, sites: [] } as AutoSleepSettings,
     badgeMode: () => Promise.resolve(settings.mode),
     language: () => Promise.resolve(settings.lang),
+    autoSleep: () => Promise.resolve(settings.sleep),
   };
   const ctx: BackgroundContext = {
     api,

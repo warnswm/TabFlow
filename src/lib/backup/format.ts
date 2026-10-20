@@ -32,7 +32,7 @@ export const BACKUP_FORMAT = 'tabflow-backup';
 export const BACKUP_VERSION = 1;
 
 export type BackupSpace = Omit<Space, 'deletedAt'>;
-export type BackupGroup = Omit<TabGroup, 'deletedAt' | 'chromeGroupId' | 'windowId'>;
+export type BackupGroup = Omit<TabGroup, 'deletedAt' | 'chromeGroupId' | 'windowId' | 'autoSlept'>;
 export type BackupTab = Omit<SavedTab, 'deletedAt' | 'chromeTabId'>;
 export type BackupVideo = Omit<QueueItem, 'deletedAt' | 'playerOrigins'>;
 
@@ -197,6 +197,7 @@ function readGroup(fields: Fields): BackupGroup | undefined {
     order: fields.order,
     ...(stateChangedAt !== undefined && { stateChangedAt }),
     ...(note !== undefined && { note: note.slice(0, 5000) }),
+    ...(fields.keepAwake === true && { keepAwake: true }),
   };
 }
 

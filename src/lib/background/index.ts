@@ -12,6 +12,7 @@ import {
   isCommand,
 } from '../messages';
 import { arrangeAllWindows } from './arrange';
+import { autoSleep } from './auto-sleep';
 import { importBackup, undoImport } from './backup-actions';
 import { collapseAll } from './collapse';
 import type { BackgroundContext } from './context';
@@ -53,6 +54,7 @@ import {
   videoProgress,
 } from './queue-actions';
 import { reviveFromChrome } from './revive';
+import { closeDuplicates, groupTabs, undoCloseDuplicates, undoGroupTabs } from './tidy-actions';
 import { createSerialQueue } from './serial-queue';
 import { deleteGroup, deleteSpace, deleteTab, restoreDeleted } from './trash-actions';
 import { createUiRefresher } from './ui-refresh';
@@ -80,6 +82,8 @@ export interface Background {
   refreshUi(): Promise<void>;
   /** The language setting changed: menu, badge and the name of «Входящие» follow it. */
   followLanguage(): Promise<void>;
+  /** The autosleep alarm rang: unused groups fall asleep. */
+  autoSleep(): Promise<void>;
   /** Resolves when all queued work is done (tests). */
   idle(): Promise<void>;
 }
@@ -125,7 +129,15 @@ function runCommand(
     case 'saveLink':
       return saveLink(ctx, command.url, command.title, command.groupId);
     case 'openApp':
-      return openApp(ctx);
+      return openApp(ctx, command.screen);
+    case 'closeDuplicates':
+      return closeDuplicates(ctx, command.keys);
+    case 'undoCloseDuplicates':
+      return undoCloseDuplicates(ctx, command.undo, command.mode);
+    case 'groupTabs':
+      return groupTabs(ctx, command.groups);
+    case 'undoGroupTabs':
+      return undoGroupTabs(ctx, command.undo);
     case 'queueTab':
       return queueTab(ctx, command.chromeTabId);
     case 'queueLink':
@@ -297,6 +309,16 @@ export function createBackground(ctx: BackgroundContext): Background {
       });
       // The menu and the badge are redrawn right after, in the new language.
       await queue.idle();
+    },
+
+    autoSleep() {
+      return run(async () => {
+        try {
+          await autoSleep(ctx);
+        } catch (error) {
+          logError('autosleep', error);
+        }
+      });
     },
 
     idle: () => queue.idle(),

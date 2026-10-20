@@ -12,6 +12,7 @@ import { Sidebar, SpaceGhost } from './components/Sidebar';
 import { SpaceView } from './components/SpaceView';
 import { SettingsView } from './components/SettingsView';
 import { SideBySideView } from './components/SideBySideView';
+import { TidyView } from './components/TidyView';
 import { TileDialog } from './components/TileDialog';
 import { Toaster } from './components/Toaster';
 import { TrashView } from './components/TrashView';
@@ -51,7 +52,9 @@ export default function App() {
     (route.view === 'space' && overview?.spaces.find((view) => view.space.id === route.spaceId)) ||
     overview?.spaces[0];
   const shownSpaceId =
-    route.view === 'trash' || route.view === 'settings' ? route.view : spaceView?.space.id;
+    route.view === 'trash' || route.view === 'settings' || route.view === 'tidy'
+      ? route.view
+      : spaceView?.space.id;
 
   useEffect(() => {
     // «Входящие» always exists, even before the first collapse.
@@ -118,6 +121,8 @@ export default function App() {
               <TrashView />
             ) : route.view === 'settings' ? (
               <SettingsView overview={overview} />
+            ) : route.view === 'tidy' ? (
+              <TidyView overview={overview} />
             ) : (
               spaceView && (
                 <SpaceView

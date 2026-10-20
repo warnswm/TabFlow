@@ -1,7 +1,7 @@
 import { useDndContext, useDndMonitor, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CornerDownLeft, Folder, Inbox, Plus, Settings, Trash } from 'lucide-react';
+import { BrushCleaning, CornerDownLeft, Folder, Inbox, Plus, Settings, Trash } from 'lucide-react';
 import { type CSSProperties, type HTMLAttributes, useState } from 'react';
 import type { Overview, SpaceView } from '@/lib/app/overview';
 import { applyOrder, moveId } from '@/lib/app/reorder';
@@ -37,6 +37,7 @@ const text = localized({
     spaces: 'Пространства',
     dropHere: 'Отпустить на пространстве — группа перейдёт туда.',
     newSpace: 'Новое пространство',
+    tidy: 'Порядок',
     trash: 'Корзина',
     outOfMemory: 'Не в памяти',
     outOfMemoryShare: 'Доля вкладок не в памяти',
@@ -52,6 +53,7 @@ const text = localized({
     spaces: 'Spaces',
     dropHere: 'Drop on a space — the group moves there.',
     newSpace: 'New space',
+    tidy: 'Tidy up',
     trash: 'Trash',
     outOfMemory: 'Out of memory',
     outOfMemoryShare: 'Share of tabs out of memory',
@@ -174,6 +176,14 @@ export function Sidebar({ overview, route, currentSpaceId }: SidebarProps) {
       </div>
 
       <div className="flex flex-col gap-0.5">
+        <a
+          href={routeHash({ view: 'tidy' })}
+          aria-current={route.view === 'tidy' ? 'page' : undefined}
+          className={route.view === 'tidy' ? NAV_ITEM_CURRENT : NAV_ITEM}
+        >
+          <BrushCleaning aria-hidden className={route.view === 'tidy' ? '' : 'text-fg-muted'} />
+          {t.tidy}
+        </a>
         <a
           href={routeHash({ view: 'trash' })}
           aria-current={route.view === 'trash' ? 'page' : undefined}

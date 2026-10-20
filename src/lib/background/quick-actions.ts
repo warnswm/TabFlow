@@ -10,7 +10,7 @@ import { dayAndMonth } from '../app/time-format';
 import { type BrowserTab, NO_GROUP } from '../browser-api';
 import type { Id, TabGroup, Timestamp } from '../db';
 import { localized } from '../i18n';
-import { CommandError, type CommandResult } from '../messages';
+import { type AppScreen, CommandError, type CommandResult } from '../messages';
 import { isSleepable } from '../summary';
 import { collapsedGroupTitle } from './collapse';
 import type { BackgroundContext } from './context';
@@ -24,7 +24,7 @@ import {
 } from './group-actions';
 import { syncGroup } from './mirror';
 import { moveIntoGroup, moveTab, openInGroup } from './move-tab';
-import { isSaveableTab, isSaveableUrl, normalizeUrl, splitDuplicates } from './tab-rules';
+import { isSaveableTab, isSaveableUrl, urlKey, splitDuplicates } from './tab-rules';
 
 const text = localized({
   ru: { dayGroup: (day: string) => `${day} · отложено` },
@@ -217,8 +217,8 @@ async function saveOpenTab(
   }
 
   const onStrip = target.chromeGroupId !== undefined && target.windowId !== undefined;
-  const url = normalizeUrl(tab.url);
-  const duplicate = links.some((item) => normalizeUrl(item.url) === url);
+  const url = urlKey(tab.url);
+  const duplicate = links.some((item) => urlKey(item.url) === url);
 
   // 1. Database.
   const [saved] = duplicate
@@ -255,9 +255,9 @@ export async function saveLink(
   const target = groupId !== undefined ? await requireGroup(ctx, groupId) : await dayGroup(ctx);
   const groupTitle = target.title;
 
-  const normalized = normalizeUrl(url);
+  const normalized = urlKey(url);
   const links = await repos.tabs.listByGroup(target.id);
-  if (links.some((item) => normalizeUrl(item.url) === normalized)) {
+  if (links.some((item) => urlKey(item.url) === normalized)) {
     return result({ groupTitle }); // already there
   }
 
@@ -269,8 +269,8 @@ export async function saveLink(
   return result({ tabs: 1, failed, groupTitle });
 }
 
-/** Shows the main TabFlow page in the current window. */
-export async function openApp(ctx: BackgroundContext): Promise<CommandResult> {
-  await openAppPageIn(ctx, await ctx.api.getCurrentWindowId());
+/** Shows the main TabFlow page in the current window (on `screen`). */
+export async function openApp(ctx: BackgroundContext, screen?: AppScreen): Promise<CommandResult> {
+  await openAppPageIn(ctx, await ctx.api.getCurrentWindowId(), screen ? `#/${screen}` : '');
   return result({});
 }

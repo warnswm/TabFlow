@@ -15,7 +15,10 @@ export interface NewGroup {
 }
 
 export type GroupPatch = Partial<
-  Pick<TabGroup, 'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId'>
+  Pick<
+    TabGroup,
+    'title' | 'color' | 'note' | 'chromeGroupId' | 'windowId' | 'keepAwake' | 'autoSlept'
+  >
 >;
 
 export interface ChromeLink {
@@ -90,7 +93,7 @@ export class GroupRepository {
 
   /**
    * Changes the lifecycle state. A stowed group is no longer on the tab strip,
-   * so its links to Chrome (group, window and tab ids) are cleared.
+   * so its links to Chrome (group, window and tab ids) are cleared. «Уснула сама» is forgotten.
    */
   async setState(id: Id, state: GroupState): Promise<void> {
     await this.db.transaction('rw', this.db.groups, this.db.tabs, async () => {
@@ -102,6 +105,7 @@ export class GroupRepository {
           stateChangedAt: now,
           chromeGroupId: undefined,
           windowId: undefined,
+          autoSlept: undefined,
           updatedAt: now,
         });
         await this.db.tabs
@@ -109,7 +113,12 @@ export class GroupRepository {
           .equals(id)
           .modify({ chromeTabId: undefined, updatedAt: now });
       } else {
-        await this.db.groups.update(id, { state, stateChangedAt: now, updatedAt: now });
+        await this.db.groups.update(id, {
+          state,
+          stateChangedAt: now,
+          autoSlept: undefined,
+          updatedAt: now,
+        });
       }
     });
   }

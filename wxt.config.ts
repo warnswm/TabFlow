@@ -20,8 +20,8 @@ export default defineConfig({
     // tabs — адреса и заголовки вкладок; tabGroups — нативные группы; storage — метка сессии браузера;
     // favicon — иконки сайтов из кэша Chrome (заглушки, плитки); contextMenus — меню «TabFlow ▸»;
     // sidePanel — очередь в боковой панели; scripting — content script видеосайтов;
-    // declarativeNetRequestWithHostAccess — сайты в рамках «Рядом» (только на сайтах с доступом)
-    // (всё без предупреждения при установке).
+    // declarativeNetRequestWithHostAccess — сайты в рамках «Рядом» (только на сайтах с доступом);
+    // alarms — автосон групп раз в минуту (всё без предупреждения при установке).
     permissions: [
       'tabs',
       'tabGroups',
@@ -31,6 +31,7 @@ export default defineConfig({
       'sidePanel',
       'scripting',
       'declarativeNetRequestWithHostAccess',
+      'alarms',
     ],
     // Доступа к сайтам при установке нет: когда в очередь попадает видео нового сайта, Chrome
     // спрашивает доступ к этому сайту (длительность и позиция видео — `queue/site-access.ts`).

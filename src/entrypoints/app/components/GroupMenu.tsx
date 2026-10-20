@@ -1,6 +1,7 @@
 import {
   Archive,
   ArchiveRestore,
+  Check,
   ChevronRight,
   Columns2,
   Ellipsis,
@@ -13,8 +14,9 @@ import {
   Trash,
 } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
-import type { Space, TabGroup } from '@/lib/db';
+import { repositories, type Space, type TabGroup } from '@/lib/db';
 import { localized } from '@/lib/i18n';
+import { words } from '@/lib/i18n/words';
 import { moveGroupToSpace, runCommand } from '../commands';
 import { useUi } from '../store';
 import { BUTTON_ICON, MENU_CONTENT, MENU_ITEM, MENU_SEPARATOR } from '../ui';
@@ -39,6 +41,11 @@ const text = localized({
     sideBySide: 'Рядом…',
     edit: 'Название и цвет',
     moveTo: 'Перенести в',
+    keepAwake: 'Не засыпать автоматически',
+    keptAwake: (title: string) =>
+      `Группа ${title} не будет засыпать сама. Усыпить её можно вручную.`,
+    mayAutoSleep: (title: string) => `Группа ${title} снова может уснуть сама.`,
+    notSaved: 'Настройка не сохранена — группа осталась как была.',
     delete: 'Удалить',
   },
   en: {
@@ -52,6 +59,11 @@ const text = localized({
     sideBySide: 'Side by side…',
     edit: 'Title and color',
     moveTo: 'Move to',
+    keepAwake: 'Keep awake',
+    keptAwake: (title: string) =>
+      `Group ${title} will not fall asleep by itself. It can still be put to sleep by hand.`,
+    mayAutoSleep: (title: string) => `Group ${title} may fall asleep by itself again.`,
+    notSaved: 'Not saved — the group stays as it was.',
     delete: 'Delete',
   },
 });
@@ -112,6 +124,19 @@ export function GroupMenu({ group, spaces, onOpenLinks, onEdit, onRestore }: Gro
           <DropdownMenu.Item className={MENU_ITEM} onSelect={onEdit}>
             <Pencil aria-hidden /> {t.edit}
           </DropdownMenu.Item>
+          <DropdownMenu.CheckboxItem
+            className={MENU_ITEM}
+            checked={group.keepAwake === true}
+            onCheckedChange={(keep) => void setKeepAwake(group, keep)}
+          >
+            {/* The check stands where the other items have their icon. */}
+            <span className="flex size-4 items-center justify-center">
+              <DropdownMenu.ItemIndicator>
+                <Check aria-hidden />
+              </DropdownMenu.ItemIndicator>
+            </span>
+            {t.keepAwake}
+          </DropdownMenu.CheckboxItem>
           <DropdownMenu.Sub>
             <DropdownMenu.SubTrigger className={MENU_ITEM} disabled={otherSpaces.length === 0}>
               <FolderInput aria-hidden /> {t.moveTo}
@@ -143,4 +168,17 @@ export function GroupMenu({ group, spaces, onOpenLinks, onEdit, onRestore }: Gro
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
+}
+
+/** «Не засыпать автоматически»: a database change only — autosleep reads it on its next run. */
+async function setKeepAwake(group: TabGroup, keep: boolean): Promise<void> {
+  const t = text();
+  const { showToast } = useUi.getState();
+  const title = words().quote(group.title || words().untitled);
+  try {
+    await repositories.groups.update(group.id, { keepAwake: keep || undefined });
+    showToast(keep ? t.keptAwake(title) : t.mayAutoSleep(title));
+  } catch {
+    showToast(t.notSaved);
+  }
 }

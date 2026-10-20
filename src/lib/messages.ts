@@ -55,8 +55,22 @@ export type Command =
   | { type: 'saveToGroup'; chromeTabId: number; groupId: Id }
   /** Saves a link without opening it — into a group or the day group in «Входящие». */
   | { type: 'saveLink'; url: string; title?: string; groupId?: Id }
-  /** Shows the main TabFlow page of the current window, opening it if needed. */
-  | { type: 'openApp' }
+  /** Shows the main TabFlow page of the current window, opening it if needed (on `screen`). */
+  | { type: 'openApp'; screen?: AppScreen }
+  /**
+   * Closes the duplicates of the preview (`tidy/duplicates.ts`): the sets with these keys are
+   * found again, extra tabs close, extra links go to the trash.
+   */
+  | { type: 'closeDuplicates'; keys: string[] }
+  /** Undo of `closeDuplicates`: links come back from the trash, closed tabs open again. */
+  | { type: 'undoCloseDuplicates'; undo: DuplicatesUndo; mode?: RestoreMode }
+  /**
+   * «Разложить вкладки»: tabs outside groups become native groups (or join one of the same
+   * title); TabFlow mirrors them in «Входящие».
+   */
+  | { type: 'groupTabs'; groups: TabGrouping[] }
+  /** Undo of `groupTabs`: the tabs leave the groups and go back to their places. */
+  | { type: 'undoGroupTabs'; undo: GroupingUndo }
   /**
    * «В очередь «на потом»» for a Chrome tab (default: the active one). The tab stays open; a video
    * already in the queue is not added twice.
@@ -97,6 +111,31 @@ export type Command =
    * from content scripts — the background takes the page from the sender tab.
    */
   | ({ type: 'videoProgress' } & VideoReport);
+
+/** Screens of the main page the popup opens directly. */
+export const APP_SCREENS = ['tidy'] as const;
+export type AppScreen = (typeof APP_SCREENS)[number];
+
+/** One group of «Разложить вкладки». */
+export interface TabGrouping {
+  title: string;
+  color: GroupColor;
+  chromeTabIds: number[];
+  joinChromeGroupId?: number;
+}
+
+/** Where the grouped tabs were: undo puts them back. */
+export interface GroupingUndo {
+  tabs: { chromeTabId: number; windowId: number; index: number }[];
+}
+
+/** What `undoCloseDuplicates` brings back. */
+export interface DuplicatesUndo {
+  /** Closed tabs outside TabFlow groups: opened again. */
+  reopen: { url: string; windowId: number; index: number }[];
+  /** Links (or the groups their last link took along) in the trash, in the order removed. */
+  restore: { kind: 'tab' | 'group'; id: Id; reopen: boolean }[];
+}
 
 /** What the content script of a video page reports (see `entrypoints/video.content.ts`). */
 export interface VideoReport {
@@ -141,6 +180,10 @@ export interface CommandResult {
   seekToSec?: number;
   /** `importBackup`: what was added and how to undo it. */
   imported?: ImportReport;
+  /** `closeDuplicates`: links moved to the trash (`tabs` — tabs closed) and how to undo. */
+  duplicates?: { links: number; undo: DuplicatesUndo };
+  /** `groupTabs`: how to undo (`groups`, `tabs` — what was grouped). */
+  grouped?: GroupingUndo;
 }
 
 /** What `undoImport` takes back: the ids an import added and the ones it moved to the trash. */
@@ -258,6 +301,45 @@ const isImportUndo = (value: unknown) => {
   );
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isTabIds = (value: unknown) =>
+  Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(isIndex);
+const isTabGrouping = (value: unknown) =>
+  isRecord(value) &&
+  Object.keys(value).every((key) =>
+    ['title', 'color', 'chromeTabIds', 'joinChromeGroupId'].includes(key),
+  ) &&
+  typeof value.title === 'string' &&
+  value.title.length <= 200 &&
+  isColor(value.color) &&
+  isTabIds(value.chromeTabIds) &&
+  isOptional(value.joinChromeGroupId, isIndex);
+const isPlace = (value: unknown, url: boolean) =>
+  isRecord(value) &&
+  isIndex(value.windowId) &&
+  isIndex(value.index) &&
+  (url ? isUrl(value.url) : isIndex(value.chromeTabId));
+const isGroupingUndo = (value: unknown) =>
+  isRecord(value) &&
+  Array.isArray(value.tabs) &&
+  value.tabs.length <= 500 &&
+  value.tabs.every((tab) => isPlace(tab, false));
+const isDuplicatesUndo = (value: unknown) =>
+  isRecord(value) &&
+  Array.isArray(value.reopen) &&
+  value.reopen.length <= 1000 &&
+  value.reopen.every((tab) => isPlace(tab, true)) &&
+  Array.isArray(value.restore) &&
+  value.restore.length <= 1000 &&
+  value.restore.every(
+    (item) =>
+      isRecord(item) &&
+      (item.kind === 'tab' || item.kind === 'group') &&
+      isId(item.id) &&
+      typeof item.reopen === 'boolean',
+  );
+
 /** Allowed fields per command; anything else in the message makes it invalid. */
 const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean>> = {
   collapseAll: {},
@@ -290,7 +372,18 @@ const VALIDATORS: Record<CommandType, Record<string, (value: unknown) => boolean
     title: (v) => isOptional(v, isTitle),
     groupId: (v) => isOptional(v, isId),
   },
-  openApp: {},
+  openApp: { screen: (v) => isOptional(v, (s) => APP_SCREENS.includes(s as AppScreen)) },
+  closeDuplicates: {
+    keys: (v) =>
+      Array.isArray(v) &&
+      v.length <= 1000 &&
+      v.every((key) => typeof key === 'string' && key.length <= 5000),
+  },
+  undoCloseDuplicates: { undo: isDuplicatesUndo, mode: (v) => isOptional(v, isMode) },
+  groupTabs: {
+    groups: (v) => Array.isArray(v) && v.length <= 50 && v.every(isTabGrouping),
+  },
+  undoGroupTabs: { undo: isGroupingUndo },
   queueTab: { chromeTabId: (v) => isOptional(v, isIndex) },
   queueLink: { url: isUrl, title: (v) => isOptional(v, isTitle) },
   openVideo: { itemId: isId },

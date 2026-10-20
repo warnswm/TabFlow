@@ -17,7 +17,7 @@ import { type BrowserGroup, type BrowserTab, NO_GROUP, type TabsEvent } from '..
 import type { SavedTab, TabGroup } from '../db';
 import { arrangeGroups, followStrip } from './arrange';
 import type { BackgroundContext } from './context';
-import { isSaveableTab, normalizeUrl } from './tab-rules';
+import { isSaveableTab, urlKey } from './tab-rules';
 
 /**
  * Tabs closed this long before their group disappears are treated as closed together with it.
@@ -336,15 +336,13 @@ export async function findMatch(
   const urls = new Set(
     (await ctx.api.queryTabs({ groupId: chromeGroup.id }))
       .filter(isSaveableTab)
-      .map((tab) => normalizeUrl(tab.url)),
+      .map((tab) => urlKey(tab.url)),
   );
 
   let best: { group: TabGroup; rank: number } | undefined;
   for (const group of candidates) {
     if (group.title !== chromeGroup.title.trim() || group.color !== chromeGroup.color) continue;
-    const savedUrls = (await ctx.repos.tabs.listByGroup(group.id)).map((tab) =>
-      normalizeUrl(tab.url),
-    );
+    const savedUrls = (await ctx.repos.tabs.listByGroup(group.id)).map((tab) => urlKey(tab.url));
     const shared = savedUrls.filter((url) => urls.has(url)).length;
     const stowed = group.state === 'stowed';
     const fits = stowed

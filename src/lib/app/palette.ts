@@ -14,6 +14,8 @@ export const MAX_TABS = 8;
 export type PaletteAction =
   | { type: 'collapseAll' }
   | { type: 'openTrash' }
+  /** «Порядок»: closing duplicates, sorting tabs into groups. */
+  | { type: 'openTidy' }
   | { type: 'newSpace' }
   | { type: 'goToSpace'; spaceId: Id }
   | { type: 'sleepGroup' | 'stowGroup' | 'restoreGroup'; group: TabGroup };
@@ -54,6 +56,8 @@ const text = localized({
     goTo: (name: string) => `Перейти в ${name}`,
     trash: 'Корзина',
     newSpace: 'Новое пространство',
+    duplicates: 'Закрыть дубликаты',
+    sortTabs: 'Разложить вкладки по группам',
   },
   en: {
     sleep: (name: string) => `Put group ${name} to sleep`,
@@ -64,6 +68,8 @@ const text = localized({
     goTo: (name: string) => `Go to ${name}`,
     trash: 'Trash',
     newSpace: 'New space',
+    duplicates: 'Close duplicates',
+    sortTabs: 'Sort tabs into groups',
   },
 });
 
@@ -98,6 +104,8 @@ function fixedActions(overview: Overview, currentSpaceId?: Id): PaletteActionIte
         label: t.goTo(quoted(space.name)),
         action: { type: 'goToSpace', spaceId: space.id } as const,
       })),
+    { id: 'duplicates', label: t.duplicates, action: { type: 'openTidy' } },
+    { id: 'sortTabs', label: t.sortTabs, action: { type: 'openTidy' } },
     { id: 'openTrash', label: t.trash, action: { type: 'openTrash' } },
     { id: 'newSpace', label: t.newSpace, action: { type: 'newSpace' } },
   ];

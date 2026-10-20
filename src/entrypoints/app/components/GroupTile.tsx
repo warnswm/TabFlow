@@ -32,6 +32,7 @@ const text = localized({
   ru: {
     active: 'Активна',
     asleepSince: (since: string) => `Уснула ${since}`,
+    autoSleptSince: (since: string) => `Уснула сама ${since}`,
     stowedSince: (since: string) => `Убрана ${since}`,
     tile: 'плитка',
     links: (title: string) => `Ссылки группы ${title}`,
@@ -46,6 +47,7 @@ const text = localized({
   en: {
     active: 'Active',
     asleepSince: (since: string) => `Asleep ${since}`,
+    autoSleptSince: (since: string) => `Fell asleep ${since}`,
     stowedSince: (since: string) => `Stowed ${since}`,
     tile: 'tile',
     links: (title: string) => `Links of group ${title}`,
@@ -65,7 +67,8 @@ function statusText(group: TabGroup, now: number): string {
     case 'active':
       return t.active;
     case 'asleep':
-      return t.asleepSince(since);
+      // Autosleep: the group fell asleep by itself, not by the user.
+      return group.autoSlept ? t.autoSleptSince(since) : t.asleepSince(since);
     case 'stowed':
       return t.stowedSince(since);
   }

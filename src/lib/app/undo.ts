@@ -61,6 +61,16 @@ export function undoCommands(
         { type: 'moveVideo', itemId: command.itemId, index: was - 1 },
       ];
     }
+    case 'closeDuplicates': {
+      const undo = result.duplicates?.undo;
+      return undo && undo.reopen.length + undo.restore.length > 0
+        ? [{ type: 'undoCloseDuplicates', undo, mode }]
+        : undefined;
+    }
+    case 'groupTabs':
+      return result.grouped && result.groups > 0
+        ? [{ type: 'undoGroupTabs', undo: result.grouped }]
+        : undefined;
     case 'importBackup':
       return result.imported
         ? [{ type: 'undoImport', undo: result.imported.undo, mode }]

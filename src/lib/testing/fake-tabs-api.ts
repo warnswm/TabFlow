@@ -27,6 +27,10 @@ export interface SeedTab {
   discarded?: boolean;
   /** False — Chrome shows no icon (an unloaded placeholder after a restart). */
   hasIcon?: boolean;
+  /** When the tab was last shown; default — now (`clock`). */
+  lastAccessed?: number;
+  audible?: boolean;
+  autoDiscardable?: boolean;
 }
 
 export const FAKE_APP_PAGE_URL = 'chrome-extension://tabflow/app.html';
@@ -51,6 +55,8 @@ export class FakeTabsApi implements TabsApi {
    * Unset — no page has a content script (sites without access).
    */
   videoPage?: (tabId: number) => void;
+  /** The time of `lastAccessed`: a tab gets it when opened and when activated. */
+  clock: () => number = () => 0;
   private pendingRefusals = new Map<number, number>();
 
   private tabs: TabRecord[] = []; // in tab strip order
@@ -90,6 +96,9 @@ export class FakeTabsApi implements TabsApi {
       highlighted: false,
       discarded: seed.discarded ?? false,
       groupId: NO_GROUP,
+      lastAccessed: seed.lastAccessed ?? this.clock(),
+      audible: seed.audible ?? false,
+      autoDiscardable: seed.autoDiscardable ?? true,
     };
     this.insert(tab);
     if (seed.active || !this.tabs.some((t) => t.windowId === windowId && t.active)) {
@@ -280,6 +289,11 @@ export class FakeTabsApi implements TabsApi {
       this.pendingRefusals.set(tab.id, this.refusedDiscardsAfterCreate);
     }
     return tab;
+  }
+
+  async navigateTab(tabId: number, url: string): Promise<void> {
+    this.require(tabId).url = url;
+    this.emit({ type: 'tabUpdated', tabId });
   }
 
   async activateTab(tabId: number): Promise<void> {
@@ -513,6 +527,7 @@ export class FakeTabsApi implements TabsApi {
       other.active = other === tab;
       other.highlighted = other === tab; // as in Chrome: activating clears the selection
     }
+    tab.lastAccessed = this.clock();
     this.windows = [...this.windows.filter((id) => id !== tab.windowId), tab.windowId];
   }
 

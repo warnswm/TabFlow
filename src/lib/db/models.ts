@@ -63,6 +63,10 @@ export interface TabGroup extends BaseRecord {
   /** Window of the native group while it is on the tab strip. */
   windowId?: number;
   note?: string;
+  /** «Не засыпать автоматически»: autosleep leaves the group alone (no index). */
+  keepAwake?: boolean;
+  /** Asleep by autosleep, not by the user («Уснула сама»); cleared on the next state change. */
+  autoSlept?: boolean;
 }
 
 export interface SavedTab extends BaseRecord {

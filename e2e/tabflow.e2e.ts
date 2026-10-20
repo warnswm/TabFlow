@@ -142,3 +142,31 @@ test('язык: English на странице настроек меняет ин
   await expect(app.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await expect(app.getByRole('link', { name: 'Входящие' })).toBeVisible();
 });
+
+test('«Порядок»: дубликаты закрываются и возвращаются, вкладки раскладываются по темам', async ({
+  openPage,
+}) => {
+  const app = await openPage('app.html#/tidy');
+  await openSiteTabs(app, ['/page/1', '/page/1?utm_source=mail', '/page/2']);
+
+  // A duplicate: the same page with an ad tag.
+  await app.getByRole('button', { name: 'Закрыть дубликаты · 1' }).click();
+  await expect(app.getByText(/^Закрыто дубликатов: 1 вкладка\./)).toBeVisible();
+  await expect.poll(async () => (await siteTabs(app)).length).toBe(2);
+  await app.getByRole('button', { name: 'Отменить' }).click();
+  await expect(app.getByText('Отменено.')).toBeVisible();
+  await expect.poll(async () => (await siteTabs(app)).length).toBe(3);
+
+  // Local pages are «Разработка» in the dictionary of topics.
+  await expect(app.getByRole('checkbox', { name: 'Разработка' })).toBeChecked();
+  await app.getByRole('button', { name: 'Разложить · 3 вкладки' }).click();
+  await expect(app.getByText(/^Разложено: 3 вкладки · 1 группа/)).toBeVisible();
+  const groups = () =>
+    app.evaluate(async () => {
+      const chrome = (globalThis as unknown as { chrome: Chrome }).chrome;
+      return (await chrome.tabGroups.query({})).map((group) => group.title);
+    });
+  expect(await groups()).toEqual(['Разработка']);
+  await app.getByRole('button', { name: 'Отменить' }).click();
+  await expect.poll(groups).toEqual([]);
+});

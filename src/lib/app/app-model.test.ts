@@ -241,6 +241,8 @@ describe('route', () => {
     expect(parseRoute('#/trash')).toEqual({ view: 'trash' });
     expect(parseRoute('#/settings')).toEqual({ view: 'settings' });
     expect(routeHash({ view: 'settings' })).toBe('#/settings');
+    expect(parseRoute('#/tidy')).toEqual({ view: 'tidy' });
+    expect(routeHash({ view: 'tidy' })).toBe('#/tidy');
     expect(parseRoute('#/space/a%2Fb')).toEqual({ view: 'space', spaceId: 'a/b' });
     expect(routeHash({ view: 'space', spaceId: 'a/b' })).toBe('#/space/a%2Fb');
     expect(routeHash({ view: 'space' })).toBe('#/');

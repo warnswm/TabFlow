@@ -428,6 +428,128 @@ export async function openSettingsPage(): Promise<void> {
   await browser.runtime.openOptionsPage();
 }
 
+// ---------------------------------------------------------------------------
+// Alarms: the service worker is stopped when idle, so timers in memory do not survive
+// ---------------------------------------------------------------------------
+
+/**
+ * Starts a repeating alarm unless it is already set: creating it again on every start of the
+ * service worker would restart its countdown, and a worker that wakes often would never ring.
+ */
+export async function ensureAlarm(name: string, periodInMinutes: number): Promise<void> {
+  if (await browser.alarms.get(name)) return;
+  await browser.alarms.create(name, { periodInMinutes });
+}
+
+/** Registers a callback for the alarm. Call synchronously at service worker start. */
+export function onAlarm(name: string, callback: () => void): void {
+  browser.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === name) callback();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Built-in AI of Chrome (Gemini Nano, Prompt API): experimental, on capable computers only.
+// Chrome downloads and keeps the model itself; nothing leaves the browser.
+// ---------------------------------------------------------------------------
+
+export type BuiltInAiState = 'unavailable' | 'downloadable' | 'downloading' | 'available';
+
+interface LanguageModelOptions {
+  expectedInputs: { type: 'text'; languages: string[] }[];
+  expectedOutputs: { type: 'text'; languages: string[] }[];
+  monitor?: (monitor: EventTarget) => void;
+}
+
+interface LanguageModelSession {
+  prompt(input: string, options?: { responseConstraint?: object }): Promise<string>;
+  destroy(): void;
+}
+
+interface LanguageModelApi {
+  availability(options: LanguageModelOptions): Promise<BuiltInAiState>;
+  create(options: LanguageModelOptions): Promise<LanguageModelSession>;
+}
+
+function languageModel(): LanguageModelApi | undefined {
+  return (globalThis as { LanguageModel?: LanguageModelApi }).LanguageModel;
+}
+
+function modelOptions(language: string): LanguageModelOptions {
+  return {
+    expectedInputs: [{ type: 'text', languages: [language] }],
+    expectedOutputs: [{ type: 'text', languages: [language] }],
+  };
+}
+
+/** The language to talk to the model in: the interface one when the model knows it, else English. */
+async function modelLanguage(
+  api: LanguageModelApi,
+  language: string,
+): Promise<{ language: string; state: BuiltInAiState }> {
+  let state: BuiltInAiState = 'unavailable';
+  for (const candidate of [...new Set([language, 'en'])]) {
+    state = await api.availability(modelOptions(candidate)).catch(() => 'unavailable' as const);
+    if (state !== 'unavailable') return { language: candidate, state };
+  }
+  return { language: 'en', state };
+}
+
+/** Whether Gemini Nano can be used here (`downloadable` — Chrome downloads it on first use). */
+export async function builtInAiState(language: string): Promise<BuiltInAiState> {
+  const api = languageModel();
+  return api ? (await modelLanguage(api, language)).state : 'unavailable';
+}
+
+/**
+ * Starts the download of Gemini Nano (Chrome allows it only right in a click) and waits for it;
+ * `onDownload` gets the share downloaded, 0…1.
+ */
+export async function prepareBuiltInAi(
+  language: string,
+  onDownload?: (share: number) => void,
+): Promise<void> {
+  const api = languageModel();
+  if (!api) throw new Error('No built-in AI in this browser');
+  const session = await api.create({
+    ...modelOptions((await modelLanguage(api, language)).language),
+    monitor(monitor) {
+      monitor.addEventListener('downloadprogress', (event) => {
+        onDownload?.((event as Event & { loaded: number }).loaded);
+      });
+    },
+  });
+  session.destroy();
+}
+
+/**
+ * Asks Gemini Nano once; the answer follows the JSON `schema`. The first use downloads the model
+ * (Chrome allows that only right in a click); `onDownload` gets the share downloaded, 0…1.
+ */
+export async function promptBuiltInAi(
+  language: string,
+  input: string,
+  schema: object,
+  onDownload?: (share: number) => void,
+): Promise<string> {
+  const api = languageModel();
+  if (!api) throw new Error('No built-in AI in this browser');
+  const options = modelOptions((await modelLanguage(api, language)).language);
+  const session = await api.create({
+    ...options,
+    monitor(monitor) {
+      monitor.addEventListener('downloadprogress', (event) => {
+        onDownload?.((event as Event & { loaded: number }).loaded);
+      });
+    },
+  });
+  try {
+    return await session.prompt(input, { responseConstraint: schema });
+  } finally {
+    session.destroy();
+  }
+}
+
 /** Language of the Chrome interface (`ru`, `en-US`) — for the language setting «Как в Chrome». */
 export function browserLanguage(): string {
   return browser.i18n.getUILanguage();
@@ -506,6 +628,12 @@ export interface BrowserTab {
   discarded: boolean;
   /** Native group id or `NO_GROUP`. */
   groupId: number;
+  /** When the tab was last shown (epoch ms; Chrome 121+, 0 when unknown). */
+  lastAccessed: number;
+  /** The tab plays sound. */
+  audible: boolean;
+  /** False — the user or another extension asked Chrome never to unload the tab. */
+  autoDiscardable: boolean;
 }
 
 export interface BrowserGroup {
@@ -558,6 +686,8 @@ export interface TabsApi {
   getTab(tabId: number): Promise<BrowserTab | undefined>;
   createTab(input: NewBrowserTab): Promise<BrowserTab>;
   activateTab(tabId: number): Promise<void>;
+  /** Opens `url` in the tab (a change of the hash only does not reload the page). */
+  navigateTab(tabId: number, url: string): Promise<void>;
   /**
    * Moves the tab to `index` (its final position) in `windowId` (default: its own window).
    * Like Chrome, a tab that lands outside its native group leaves the group, and a tab that lands
@@ -627,6 +757,9 @@ function toBrowserTab(tab: Browser.tabs.Tab, placeholderPageUrl: string): Browse
     highlighted: tab.highlighted,
     discarded: tab.discarded,
     groupId: tab.groupId ?? NO_GROUP,
+    lastAccessed: tab.lastAccessed ?? 0,
+    audible: tab.audible ?? false,
+    autoDiscardable: tab.autoDiscardable ?? true,
   };
 }
 
@@ -697,6 +830,10 @@ export function createBrowserTabsApi(): TabsApi {
 
     async activateTab(tabId) {
       await browser.tabs.update(tabId, { active: true });
+    },
+
+    async navigateTab(tabId, url) {
+      await browser.tabs.update(tabId, { url });
     },
 
     async moveTab(tabId, { index, windowId }) {

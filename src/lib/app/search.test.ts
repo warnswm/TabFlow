@@ -150,9 +150,14 @@ describe('palette', () => {
     expect(palette.actions.map((item) => item.label)).toEqual([
       'Свернуть всё',
       'Перейти в «Входящие»',
+      'Закрыть дубликаты',
+      'Разложить вкладки по группам',
       'Корзина',
       'Новое пространство',
     ]);
+    expect(
+      palette.actions.filter((item) => item.action.type === 'openTidy').map((item) => item.id),
+    ).toEqual(['duplicates', 'sortTabs']);
   });
 
   it('finds groups and links everywhere and offers actions for the best group', () => {

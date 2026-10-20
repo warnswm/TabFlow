@@ -358,13 +358,21 @@ export async function discardWhen(
   return tabId;
 }
 
-/** Activates the main TabFlow page in the window, opening it if needed. */
-export async function openAppPageIn(ctx: BackgroundContext, windowId: number): Promise<void> {
+/** Activates the main TabFlow page in the window, opening it if needed; `hash` — on that screen. */
+export async function openAppPageIn(
+  ctx: BackgroundContext,
+  windowId: number,
+  hash = '',
+): Promise<void> {
   const { api } = ctx;
   const tabs = await api.queryTabs({ windowId });
   const existing = tabs.find((tab) => tab.url.startsWith(api.appPageUrl));
-  if (existing) await api.activateTab(existing.id);
-  else await api.createTab({ windowId, url: api.appPageUrl, active: true });
+  if (existing) {
+    await api.activateTab(existing.id);
+    if (hash) await api.navigateTab(existing.id, api.appPageUrl + hash);
+  } else {
+    await api.createTab({ windowId, url: api.appPageUrl + hash, active: true });
+  }
 }
 
 /** If the active tab of a window is among `leaving`, activates the nearest other tab (or the main page). */

@@ -1,6 +1,8 @@
 import {
   Archive,
   ArrowUpRight,
+  CopyX,
+  Group,
   ListVideo,
   Minimize2,
   Moon,
@@ -14,6 +16,8 @@ import {
   type BrowserTab,
   getHotkey,
   getOpenTabsInfo,
+  getPageWindowId,
+  listOpenTabs,
   type OpenTabsInfo,
   openSettingsPage,
   openSidePanel,
@@ -29,10 +33,18 @@ import { type Command, sendCommand } from '@/lib/messages';
 import { accessPatterns } from '@/lib/queue/site-access';
 import { videoKey } from '@/lib/queue/video-url';
 import { currentTarget, summarize } from '@/lib/summary';
+import { duplicateCounts, findDuplicates } from '@/lib/tidy/duplicates';
+import { groupableTabs } from '@/lib/tidy/grouping';
 import { useLiveQuery } from '@/lib/use-live-query';
 
 const listGroups = () => repositories.groups.listAll();
 const listQueue = () => repositories.queue.list('queued');
+const listLinks = () => repositories.tabs.listAll();
+
+async function loadOpenTabs(): Promise<{ tabs: BrowserTab[]; windowId?: number }> {
+  const [tabs, windowId] = await Promise.all([listOpenTabs(), getPageWindowId()]);
+  return { tabs, windowId };
+}
 
 const text = localized({
   ru: {
@@ -55,6 +67,8 @@ const text = localized({
     queueVideo: 'Видео в очередь',
     openQueue: 'Открыть очередь',
     openApp: 'Открыть TabFlow',
+    duplicates: 'Закрыть дубликаты',
+    sortTabs: 'Разложить вкладки по группам',
   },
   en: {
     noAnswer: 'The TabFlow background did not answer. Tabs stay where they are.',
@@ -76,6 +90,8 @@ const text = localized({
     queueVideo: 'Add video to the queue',
     openQueue: 'Open queue',
     openApp: 'Open TabFlow',
+    duplicates: 'Close duplicates',
+    sortTabs: 'Sort tabs into groups',
   },
 });
 
@@ -85,19 +101,34 @@ export default function App() {
   const t = text();
   const groups = useLiveQuery(listGroups) ?? [];
   const queued = useLiveQuery(listQueue) ?? [];
+  const links = useLiveQuery(listLinks) ?? [];
+  // All open tabs and this window: duplicates and tabs outside groups («Порядок»).
+  const [open, setOpen] = useState<{ tabs: BrowserTab[]; windowId?: number }>({ tabs: [] });
   const [tabs, setTabs] = useState<OpenTabsInfo>(NO_TABS);
   const [shortcut, setShortcut] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const readTabs = useCallback(() => getOpenTabsInfo().then(setTabs), []);
+  const readTabs = useCallback(
+    () =>
+      Promise.all([getOpenTabsInfo(), loadOpenTabs()]).then(([info, all]) => {
+        setTabs(info);
+        setOpen(all);
+      }),
+    [],
+  );
 
   useEffect(() => {
-    void getOpenTabsInfo().then(setTabs);
+    void Promise.all([getOpenTabsInfo(), loadOpenTabs()]).then(([info, all]) => {
+      setTabs(info);
+      setOpen(all);
+    });
     void getHotkey('collapse-all').then((key) => setShortcut(formatShortcut(key)));
   }, []);
 
   const summary = summarize(groups, new Set(tabs.shownGroupIds));
+  const extras = duplicateCounts(findDuplicates(open.tabs, groups, links));
+  const loose = open.windowId === undefined ? 0 : groupableTabs(open.tabs, open.windowId).length;
   const current: BrowserTab | undefined = tabs.current;
   const target = currentTarget(current, groups);
   const onTab = current ? { chromeTabId: current.id } : {};
@@ -119,8 +150,8 @@ export default function App() {
     window.close();
   }
 
-  async function openApp() {
-    await sendCommand({ type: 'openApp' });
+  async function openApp(screen?: 'tidy') {
+    await sendCommand(screen ? { type: 'openApp', screen } : { type: 'openApp' });
     window.close();
   }
 
@@ -276,6 +307,26 @@ export default function App() {
           onClick={queueCurrent}
         >
           {t.queueVideo}
+        </Action>
+
+        {/* Both open «Порядок» on the main page: a preview first, undo in its toast. */}
+        <Action
+          icon={<CopyX />}
+          disabled={extras.tabs + extras.links === 0}
+          note={String(extras.tabs + extras.links)}
+          mono
+          onClick={() => void openApp('tidy')}
+        >
+          {t.duplicates}
+        </Action>
+        <Action
+          icon={<Group />}
+          disabled={loose < 2}
+          note={String(loose)}
+          mono
+          onClick={() => void openApp('tidy')}
+        >
+          {t.sortTabs}
         </Action>
 
         {supportsSidePanel() && (

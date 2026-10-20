@@ -252,6 +252,9 @@ function runAction(action: PaletteAction) {
     case 'openTrash':
       navigate({ view: 'trash' });
       break;
+    case 'openTidy':
+      navigate({ view: 'tidy' });
+      break;
     case 'newSpace':
       ui.setNewSpaceOpen(true);
       break;

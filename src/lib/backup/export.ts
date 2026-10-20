@@ -27,7 +27,9 @@ export async function createBackup(
     version: BACKUP_VERSION,
     exportedAt: now,
     spaces: spaces.map((space) => without(space, ['deletedAt'])),
-    groups: liveGroups.map((group) => without(group, ['deletedAt', 'chromeGroupId', 'windowId'])),
+    groups: liveGroups.map((group) =>
+      without(group, ['deletedAt', 'chromeGroupId', 'windowId', 'autoSlept']),
+    ),
     tabs: tabs
       .filter((tab) => groupIds.has(tab.groupId))
       .map((tab) => without(tab, ['deletedAt', 'chromeTabId'])),
