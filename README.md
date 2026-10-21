@@ -4,7 +4,7 @@
 
 Менеджер вкладок для Chrome: группы с тремя состояниями — активна, спит, убрана, — обзор плитками и очередь видео «на потом». Интерфейс на русском и английском. [English below](#english).
 
-![Главная: группы в трёх состояниях и очередь](store/screenshots/ru/01-main.png)
+![Главная: группы в трёх состояниях и очередь](docs/screenshots/ru/01-main.png)
 
 ## Что умеет
 
@@ -18,12 +18,10 @@
 
 | | |
 |---|---|
-| ![Палитра Ctrl+K](store/screenshots/ru/02-palette.png) | ![Очередь в боковой панели](store/screenshots/ru/03-queue.png) |
-| ![Рядом](store/screenshots/ru/04-side-by-side.png) | ![Окно на панели расширений](store/screenshots/ru/05-popup.png) |
+| ![Палитра Ctrl+K](docs/screenshots/ru/02-palette.png) | ![Очередь в боковой панели](docs/screenshots/ru/03-queue.png) |
+| ![Рядом](docs/screenshots/ru/04-side-by-side.png) | ![Окно на панели расширений](docs/screenshots/ru/05-popup.png) |
 
 ## Установка
-
-TabFlow пока не опубликован в Chrome Web Store, поэтому ставится вручную:
 
 1. Скачать `tabflow-<версия>-chrome.zip` со страницы [Releases](../../releases) и распаковать в постоянную папку (её нельзя удалять — Chrome грузит расширение оттуда).
 2. Открыть `chrome://extensions`, включить **«Режим разработчика»** (справа вверху).
@@ -33,7 +31,10 @@ TabFlow пока не опубликован в Chrome Web Store, поэтому
 
 ## Данные
 
-Всё хранится только в этом браузере (IndexedDB и `chrome.storage`): нет сервера, аккаунтов, рекламы и аналитики. TabFlow сам ходит в сеть только за обложками YouTube (`i.ytimg.com`). Доступ к сайтам не выдаётся при установке — Chrome спрашивает его для каждого сайта отдельно. Подробнее — [политика конфиденциальности](store/privacy-policy.md).
+- Всё хранится только в этом браузере (IndexedDB и `chrome.storage`): нет сервера, аккаунтов, рекламы и аналитики. Удаление расширения удаляет и его данные.
+- TabFlow сам ходит в сеть только за обложками YouTube (`i.ytimg.com`, по id видео).
+- Доступ к сайтам не выдаётся при установке: Chrome спрашивает его для каждого сайта отдельно — когда видео попадает в очередь или сайт открывается «Рядом». Убрать доступ можно в настройках TabFlow.
+- Раскладка вкладок с помощью Gemini Nano (эксперимент, выключен по умолчанию) работает на устройстве: модель встроена в Chrome, вкладки никуда не отправляются.
 
 ## Сборка из исходников
 
@@ -66,7 +67,7 @@ pnpm build
 
 A tab manager for Chrome: groups with three states — active, asleep, stowed — tiles at a glance and a watch-later video queue. The interface is in English and Russian (follows Chrome's language or the choice in the settings).
 
-![Main page: groups in three states and the queue](store/screenshots/en/01-main.png)
+![Main page: groups in three states and the queue](docs/screenshots/en/01-main.png)
 
 - **Three states of a group.** Active — on the tab strip. Asleep — on the tab strip, tabs unloaded from memory. Stowed — tabs closed, the group kept in TabFlow; it comes back as a native Chrome group with the same title and color.
 - **Collapse all** in one click or `Ctrl+Shift+S`.
@@ -78,7 +79,7 @@ A tab manager for Chrome: groups with three states — active, asleep, stowed �
 
 **Install:** download `tabflow-<version>-chrome.zip` from [Releases](../../releases) and unzip it into a folder you keep → `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → pick the folder. Chrome 121 or newer.
 
-**Data** stays in the browser; the only network requests TabFlow makes are YouTube thumbnails from `i.ytimg.com`. See the [privacy policy](store/privacy-policy.md).
+**Data** stays in the browser: no server, accounts, ads or analytics. The only network requests TabFlow makes are YouTube thumbnails from `i.ytimg.com`. Site access is asked per site, only when a video is queued or a site is opened side by side. Sorting tabs with Gemini Nano (experimental, off by default) runs on the device.
 
 **Build:** `pnpm install && pnpm build` → `.output/chrome-mv3`.
 

@@ -4,7 +4,7 @@
  * host resolves to a local server) and drawn video thumbnails — no real brands, accounts or
  * history. `pnpm build` first, then:
  *
- *   node scripts/store-shots.mjs [ru|en]   → store/screenshots/<lang>/01-…05-*.png
+ *   node scripts/store-shots.mjs [ru|en]   → docs/screenshots/<lang>/01-…05-*.png
  *
  * The extension is copied to a temporary folder with site access granted at install (only there:
  * the real manifest asks per site), so that «Рядом» can show the sites without Chrome's prompt.
@@ -17,7 +17,7 @@ import { join, resolve } from 'node:path';
 
 const LANG = process.argv[2] === 'en' ? 'en' : 'ru';
 const ROOT = resolve(import.meta.dirname, '..');
-const OUT = join(ROOT, 'store', 'screenshots', LANG);
+const OUT = join(ROOT, 'docs', 'screenshots', LANG);
 const PORT = 4180;
 // Pages are laid out at 1440×900 and shot at 1280×800: four tiles in a row, as on a laptop.
 const WIDTH = 1440;
