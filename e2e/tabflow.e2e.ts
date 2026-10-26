@@ -36,6 +36,26 @@ test('«Свернуть всё» убирает вкладки в TabFlow, «В
   expect(groups).toEqual({ count: 1, tabs: 2 });
 });
 
+test('уведомление закрывается само и после того, как прошлое закрыли под указателем', async ({
+  openPage,
+}) => {
+  const app = await openPage('app.html');
+  await openSiteTabs(app, ['/page/1', '/page/2']);
+  await app.getByRole('button', { name: 'Свернуть всё' }).click();
+  await expect(app.getByText(/^Свёрнуто: 1 группа · 2 вкладки/)).toBeVisible();
+
+  // The click hovers the toast; it disappears under the pointer without «pointerleave».
+  await app.getByRole('button', { name: 'Закрыть уведомление' }).click();
+  await app.mouse.move(5, 5);
+
+  await openSiteTabs(app, ['/page/3']);
+  await app.getByRole('button', { name: 'Свернуть всё' }).click();
+  const next = app.getByText(/^Свёрнуто: 1 группа · 1 вкладка/);
+  await expect(next).toBeVisible();
+  // TOAST_MS is 8 s.
+  await expect(next).toBeHidden({ timeout: 12_000 });
+});
+
 test('видео из очереди видно в боковой панели и на значке', async ({ openPage }) => {
   const app = await openPage('app.html');
 

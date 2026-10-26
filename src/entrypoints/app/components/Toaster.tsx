@@ -15,7 +15,10 @@ const text = localized({
 export function Toaster() {
   const toast = useUi((state) => state.toast);
   const dismiss = useUi((state) => state.dismissToast);
-  const [paused, setPaused] = useState(false);
+  // The id, not a flag: a toast removed under the pointer gets no «pointerleave», and the next
+  // toast must not stay paused.
+  const [pausedId, setPausedId] = useState<number>();
+  const paused = toast !== undefined && toast.id === pausedId;
 
   useEffect(() => {
     if (!toast || paused) return;
@@ -33,8 +36,8 @@ export function Toaster() {
       {toast && (
         <div
           key={toast.id}
-          onPointerEnter={() => setPaused(true)}
-          onPointerLeave={() => setPaused(false)}
+          onPointerEnter={() => setPausedId(toast.id)}
+          onPointerLeave={() => setPausedId(undefined)}
           className="pointer-events-auto flex max-w-[560px] animate-toast-in items-center gap-4 rounded-lg bg-surface-raised py-2.5 pr-2 pl-4 text-sm shadow-popover"
         >
           <span>{toast.text}</span>
